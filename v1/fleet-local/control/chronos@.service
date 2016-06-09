@@ -27,6 +27,8 @@ ExecStartPre=-/usr/bin/docker rm chronos
 
 ExecStart=/usr/bin/sh -c "docker run \
   --name chronos \
+  --log-opt max-size=$(etcdctl get /docker/config/logs-max-size) \
+  --log-opt max-file=$(etcdctl get /docker/config/logs-max-file) \
   --net=host \
   --read-only \
   -v /opt/mesos/framework-secret:/opt/mesos/framework-secret:ro \

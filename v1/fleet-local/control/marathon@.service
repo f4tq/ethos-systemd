@@ -27,6 +27,8 @@ ExecStartPre=-/usr/bin/docker rm marathon
 
 ExecStart=/usr/bin/sh -c "/usr/bin/docker run \
   --name marathon \
+  --log-opt max-size=$(etcdctl get /docker/config/logs-max-size) \
+  --log-opt max-file=$(etcdctl get /docker/config/logs-max-file) \
   -e LIBPROCESS_PORT=9090 \
   --net=host \
   -v /opt/mesos/framework-secret:/opt/mesos/framework-secret:ro \

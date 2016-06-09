@@ -18,6 +18,8 @@ ExecStartPre=-/usr/bin/docker rm control-proxy
 ExecStart=/usr/bin/bash -c \
   "/usr/bin/docker run \
   --name control-proxy \
+  --log-opt max-size=$(etcdctl get /docker/config/logs-max-size) \
+  --log-opt max-file=$(etcdctl get /docker/config/logs-max-file) \
   -e MESOS_MASTER_HOST=http://$($INTERNAL_CONTROL_ELB):5050 \
   -p 7070:80 \
   $($IMAGE)"

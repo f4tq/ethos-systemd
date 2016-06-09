@@ -20,6 +20,8 @@ ExecStartPre=-/usr/bin/docker rm zk-exhibitor
 
 ExecStart=/usr/bin/bash -c "sudo docker run \
   --name=zk-exhibitor \
+  --log-opt max-size=$(etcdctl get /docker/config/logs-max-size) \
+  --log-opt max-file=$(etcdctl get /docker/config/logs-max-file) \
   -p 8181:8181 \
   -p 2181:2181 \
   -p 2888:2888 \

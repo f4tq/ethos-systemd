@@ -25,6 +25,8 @@ ExecStartPre=-/usr/bin/docker rm mesos-master
 
 ExecStart=/usr/bin/bash -c "sudo docker run \
   --name=mesos-master \
+  --log-opt max-size=$(etcdctl get /docker/config/logs-max-size) \
+  --log-opt max-file=$(etcdctl get /docker/config/logs-max-file) \
   --privileged \
   --net=host \
   -v /var/lib/mesos/master:/var/lib/mesos/master \

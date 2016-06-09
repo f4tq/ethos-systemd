@@ -5,6 +5,8 @@ SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 VERSION="v1"
 LEADER="false"
 source /etc/environment || :
+# Turn off coredumps that seem to happen on smaller, overloaded instances leading to closed-loop feedback
+sudo /usr/bin/sed -i 's/#Storage=external/Storage=none/' /etc/systemd/coredump.conf
 
 echo "-------Beginning Bootstrap Script: $VERSION-------"
 
@@ -18,6 +20,17 @@ source $SCRIPTDIR/$VERSION/lib/helpers.sh
 # Control tier - must form an etcd2 cluster first
 if [[ "$NODE_ROLE" = "control" ]]; then
   sudo ${SCRIPTDIR}/$VERSION/util/etcd2-setup.sh $SCRIPTDIR $VERSION
+fi
+if [ "$NODE_ROLE" = "control" ];then
+    etcdctl get /docker/config/logs-max-size
+    if [[ $? = 4 ]]; then
+	etcdctl set /docker/config/logs-max-size 10m
+    fi
+    
+    etcdctl get /docker/config/logs-max-file
+    if [[ $? = 4 ]]; then
+	etcdctl set /docker/config/logs-max-file 10
+    fi
 fi
 
 # Worker tier - must run the IAM proxy setup before any other containers

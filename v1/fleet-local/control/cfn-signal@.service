@@ -17,6 +17,8 @@ ExecStartPre=/usr/bin/systemctl is-active mesos-master@*
 ExecStartPre=/usr/bin/systemctl is-active marathon@*
 ExecStartPre=/usr/bin/sh -c "docker pull $($IMAGE)"
 ExecStartPre=/usr/bin/sh -c "/usr/bin/docker run --rm\
+ --log-opt max-size=$(etcdctl get /docker/config/logs-max-size) \
+ --log-opt max-file=$(etcdctl get /docker/config/logs-max-file) \
  $($IMAGE) cfn-signal\
  --stack $STACK_NAME\
  --region $($AZ|head -c-1)\
