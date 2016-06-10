@@ -16,7 +16,7 @@ ExecStartPre=/usr/bin/systemctl is-active update-os.service
 ExecStartPre=/usr/bin/bash -c "if [ ! -f /home/core/.dockercfg ]; then exit 1; fi"
 ExecStartPre=/usr/bin/bash -c "if [ ! -f /opt/mesos/credentials ]; then exit 1; fi"
 
-ExecStart=/usr/bin/bash /home/core/ethos-systemd/v3/util/run-mesos-slave.sh
+ExecStart=/usr/bin/bash /home/core/ethos-systemd/v1/util/run-mesos-slave.sh
 
 ExecStop=-/usr/bin/docker stop mesos-slave
 
