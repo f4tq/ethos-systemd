@@ -10,6 +10,7 @@ Restart=always
 RestartSec=5s
 
 ExecStartPre=/usr/bin/systemctl is-active bootstrap
+ExecStartPre=/usr/bin/systemctl is-active sumologic-journald.service
 ExecStart=/bin/sh -c '\
 journalctl -f|\
 while read line;\

@@ -6,8 +6,10 @@ After=docker.service bootstrap.service
 EnvironmentFile=/etc/environment
 Environment="IMAGE=etcdctl get /images/sumologic"
 Environment="IP=curl -sS http://169.254.169.254/latest/meta-data/local-ipv4"
+Environment="REGION=curl -s http://169.254.169.254/latest/dynamic/instance-identity/document"
 User=core
 Restart=always
+RestartSec=5s
 TimeoutStartSec=0
 ExecStartPre=/usr/bin/systemctl is-active bootstrap
 ExecStartPre=/usr/bin/bash -c \
@@ -21,7 +23,7 @@ ExecStart=/usr/bin/bash -c \
     --hostname=$COREOS_PRIVATE_IPV4 \
     -v /var/lib/docker/containers/:/tmp/clogs/:ro \
     -e SUMO_NAME=docker_cluster \
-    -e SUMO_CATEGORY=be/${NODE_PRODUCT}/${NODE_TIER}/control-logs \
+    -e SUMO_CATEGORY=ethos/${NODE_PRODUCT}/$($REGION | jq -r .region)/${NODE_TIER}/control-logs \
     -e SUMO_COLLECTOR_NAME=mesos_app_collector \
     -e SUMO_HOSTNAME=$($IP) \
     -e SUMO_ACCESS_ID=`etcdctl get /sumologic/config/access-id` \

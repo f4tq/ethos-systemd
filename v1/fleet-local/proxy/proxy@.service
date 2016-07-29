@@ -14,6 +14,7 @@ Environment="PROXY=etcdctl get /capcom/config/proxy"
 Environment="CMD=etcdctl get /capcom/config/proxy-docker-command"
 
 ExecStartPre=/usr/bin/sh -c "source /etc/profile.d/etcdctl.sh && docker pull $($IMAGE)"
+ExecStartPre=-/usr/bin/sudo /home/core/ethos-systemd/v1/util/ensure-proxy.sh
 ExecStartPre=-/usr/bin/docker kill proxy
 ExecStartPre=-/usr/bin/docker rm proxy
 

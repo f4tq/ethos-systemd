@@ -8,8 +8,10 @@ After=docker.service bootstrap.service
 EnvironmentFile=/etc/environment
 Environment="IMAGE=etcdctl get /images/sumologic-syslog"
 Environment="IP=curl -sS http://169.254.169.254/latest/meta-data/local-ipv4"
+Environment="REGION=curl -sS http://169.254.169.254/latest/dynamic/instance-identity/document"
 User=core
 Restart=always
+RestartSec=5s
 TimeoutStartSec=0
 ExecStartPre=/usr/bin/systemctl is-active bootstrap
 ExecStartPre=/usr/bin/bash -c \
@@ -25,7 +27,7 @@ sudo -E /usr/bin/docker run --name sumologic-journald \
 -p 514:514/udp \
 -e PATH_EXPRESSION=/syslog/syslog \
 -e SUMO_NAME=${NODE_PRODUCT}-${NODE_TIER}-cluster \
--e SUMO_CATEGORY=be/${NODE_PRODUCT}/${NODE_TIER}/${NODE_ROLE}/journald-logs \
+-e SUMO_CATEGORY=ethos/${NODE_PRODUCT}/$($REGION | jq -r .region)/${NODE_TIER}/${NODE_ROLE}/journald-logs \
 -e SUMO_COLLECTOR_NAME=mesos_journald_collector \
 -e SUMO_HOSTNAME=$($IP) \
 -e SUMO_ACCESS_ID=`etcdctl get /sumologic/config/access-id` \
