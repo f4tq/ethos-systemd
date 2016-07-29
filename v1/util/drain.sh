@@ -17,6 +17,7 @@ fi
 
 . /etc/profile.d/etcdctl.sh
 
+STOP_TIMEOUT=20
 MACHINEID=`/etc/machine-id`
 LOCKCMD="docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --topic coreos_drain --group ${NODE_ROLE} lock $MACHINEID"
 UNLOCKCMD="docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --topic coreos_drain --group ${NODE_ROLE} unlock $MACHINEID"
@@ -50,7 +51,7 @@ trap_cmd(){
 }
 
 while : ; do
-    $($LOCKCMD)
+    eval $LOCKCMD
     status=$?
     if [ $status -eq 0 ]; then
 	break
@@ -58,11 +59,11 @@ while : ; do
 	watch_lock $LOCKCMD
 	status=$?
 	if [ $status -eq 0 ]; then
-	    echo "$MACHINE-ID got drain lock"
 	    break
 	fi
     fi
 done
+echo "$(date +%s)|$MACHINE-ID got drain lock"
 
 # Get out local ip
 LOCAL_IP="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
@@ -90,12 +91,15 @@ docker_inspect(){
     cat ${DOCKER_INSPECT}
 }
 
+# find_docker_id_by_taskId
+#  takes a mesos_task_id and search docker inspect for the matching docker id
+#
 find_docker_id_by_taskId(){
     taskId="$1"
     if [ -z "$taskId" ]; then
 	error "Missing taskId in call to find_docker_id_by_taskId"
     fi
-    docker_inspect | jq --arg taskId  '.[] | select(.Config.Env[] | contains($taskId ))| .Id'
+    docker_inspect | jq --arg taskId "$taskId" '.[] | select(.Config.Env[] | contains($taskId ))| .Id'
 }
 
 
@@ -150,6 +154,8 @@ example_output
 marathon_jobs() {
     echo "${THIS_SLAVES_MARATHON_JOBS}"
 }
+marathon_docker_ids() {
+    marathon_jobs | 
 host_ports() {
     # pre-made for egrep
     marathon_jobs | jq 'reduce .[] as $list ([] ; . + $list.mappings)| join("|")'
@@ -181,13 +187,41 @@ drain_tcp() {
 	fi
     done
 }
+# drain_docker cycles through docker instances started by mesos
 
+drain_docker() {
+    for i in $(marathon_docker_jobs | jq '.[] | .mesos_task_id' ); do
+	docker_id=$(find_docker_id_by_taskId $i)
+	echo "mesos: $i maps to ${docker_id}"
+	NOW=$SECONDS
+	MAX=$((SECONDS+ ${STOP_TIMEOUT} ))
+	dead=0
+	while [ $SECONDS -lt $MAX ]; do
+	    docker stop ${docker_id}
+	    docker ps -a | grep ${docker_id} | grep -q Exited
+	    if [ $? -eq 0]; then
+		echo "$(date +%s)|drain_docker: Stopped $i/${docker_id}"
+		dead=1
+		break
+	    fi
+	done
+	if [ $dead -eq 0 ]; then
+	    echo "$(date +%s)|drain_docker: Using a hammer stopping $i/${docker_id}"
+	    docker kill ${docker_id}
+	fi
+    done
+}
 
 
 case "$1" in
     marathon_jobs)
 	marathon_jobs
 	;;
+    marathon_docker_jobs)
+	for i in $(marathon_docker_jobs | jq '.[] | .mesos_task_id' ); do
+	    docker_id=$(find_docker_id_by_taskId $i)
+	    echo "mesos: $i maps to ${docker_id}"
+	done
     host_ports)
 	host_ports
 	;;
@@ -206,7 +240,18 @@ case "$1" in
 	;;
 
     *)
-        echo "Usage: drain {marathon_jobs|host_ports|just_ports|drain_tcp|drain_docker}"
+        echo <<EOF 
+Usage: drain {marathon_jobs|marathon_docker_jobs|host_ports|just_ports|drain_tcp|drain_docker}
+Ethos assumptions:  All endpoints are in etcd and that all nodes have access to etcd.
+
+host_ports - outputs the pipe separated list ip:ports for this listening on this slave
+just_ports - is just the ports separated by pipes for grep
+marathon_jobs - outputs json with the mesos_task_id
+marathon_docker_jobs - takes the output of marathon_jobs and search docker_inspect in a xref into the .Config.Env for the task id.  Mesos sets the task id into the docker instances it starts.
+drain_tcp - stops the mesos slave and waits for all the ports coming from host_ports in an ESTABLISHED state to drop to zero.
+drain_docker - takes 
+
+EOF
         exit 1
         ;;
 esac
