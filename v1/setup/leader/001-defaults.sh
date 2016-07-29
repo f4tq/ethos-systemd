@@ -117,8 +117,14 @@ etcd-set /booster/config/enabled 0
 etcd-set /environment/services "sumologic datadog"
 
 ######################
-#      SERVICES
+#      skopos
 ######################
+
+# effects number of simulataneous lock holder per-tier for coreos updates
+etcd-set /etcd-locks/coreos_updates/worker 1
+etcd-set /etcd-locks/coreos_updates/control 1
+etcd-set /etcd-locks/coreos_updates/proxy 1
+
 
 
 echo "-------Leader node, done writing all default values to etcd-------"
