@@ -157,11 +157,6 @@ slave_info(){
 }
 
 
-if [ -z "${SLAVE_ID}" ]; then
-    error "No slave id found.  Is the mesos-slave running?"
-fi
-
-SLAVE_HOST=$( slave_info | jq .hostname)
 
 find_all_mesos_docker_instances(){
     # Mesos creates docker instances for potentially many frameworks.  Marathon is just one
@@ -259,6 +254,11 @@ drain(){
 update_slave_info
 # Getting the slave Id.
 SLAVE_ID=$( slave_info | jq .id)
+if [ -z "${SLAVE_ID}" ]; then
+    error "No slave id found.  Is the mesos-slave running?"
+fi
+SLAVE_HOST=$( slave_info | jq .hostname)
+
 # Get docker info
 update_docker_inspect
 # Get marathon info filtered by this slave
