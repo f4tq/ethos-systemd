@@ -18,7 +18,7 @@ fi
 . /etc/profile.d/etcdctl.sh
 
 STOP_TIMEOUT=20
-MACHINEID=`/etc/machine-id`
+MACHINEID=`cat /etc/machine-id`
 LOCKCMD="docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --topic coreos_drain --group ${NODE_ROLE} lock $MACHINEID"
 UNLOCKCMD="docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --topic coreos_drain --group ${NODE_ROLE} unlock $MACHINEID"
 

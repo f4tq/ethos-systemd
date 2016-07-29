@@ -6,7 +6,7 @@ LOCALPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $LOCALPATH
 
 source /etc/environment
-MACHINEID=`/etc/machine-id`
+MACHINEID=`cat /etc/machine-id`
 LOCKSMITHCTL_ENDPOINT=127.0.0.1:2379
 
 if [ "${NODE_ROLE}" == "worker" ]; then
