@@ -18,7 +18,7 @@ for j in ${CLUSTERWIDE_LOCKS}; do
     for i in control worker proxy; do
 	    docker run --net host -i --rm $($IMAGE)  locksmithctl --topic $j --group $i status 
 	    max_locks="1"
-	    x=$(etcdctl get /etcd-locks/$j/$i 2>/dev/null )
+	    x=$(etcdctl get /adobe.com/settings/etcd-locks/$j/num_$i 2>/dev/null )
 	    if [ $? -eq 0 -a ! -z "$x"]; then
 		max_locks=$x
 	    fi
