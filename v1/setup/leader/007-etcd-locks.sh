@@ -16,7 +16,7 @@ for j in ${CLUSTERWIDE_LOCKS}; do
     fi	
          
     for i in control worker proxy; do
-	    docker run --net host -i --rm $($IMAGE)  locksmithctl --topic $j --group $i status 
+	    docker run --net host -i --rm $IMAGE  locksmithctl --topic $j --group $i status 
 	    max_locks="1"
 	    x=$(etcdctl get /adobe.com/settings/etcd-locks/$j/num_$i 2>/dev/null )
 	    if [ $? -eq 0 -a ! -z "$x"]; then
@@ -24,7 +24,7 @@ for j in ${CLUSTERWIDE_LOCKS}; do
 	    fi
 	    if [ "1" != "${max_locks}" ]; then 
 		# allow 2 updates to happen
-		docker run --net host -i --rm $($IMAGE)  locksmithctl --topic $j --group $i set-max ${max_locks}
+		docker run --net host -i --rm $IMAGE  locksmithctl --topic $j --group $i set-max ${max_locks}
 	    fi
 
     done 
