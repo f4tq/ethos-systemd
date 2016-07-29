@@ -31,6 +31,7 @@ etcd-set /images/control-proxy          "index.docker.io/behance/apigateway:v0.0
 
 etcd-set /images/mesos-slave            "index.docker.io/mesosphere/mesos-slave:0.27.0-0.2.190.ubuntu1404"
 
+etcd-set /images/etcd-locks              "index.docker.io/adobeplatform/etcd-locks:v0.0.1"
 
 ######################
 #      CAPCOM
@@ -114,5 +115,10 @@ etcd-set /booster/config/enabled 0
 ######################
 
 etcd-set /environment/services "sumologic datadog"
+
+######################
+#      SERVICES
+######################
+
 
 echo "-------Leader node, done writing all default values to etcd-------"

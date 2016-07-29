@@ -10,7 +10,7 @@ Type=oneshot
 SuccessExitStatus=0 1
 RemainAfterExit=yes
 
-ExecStart=/usr/bin/bash -c "update_engine_client -update|grep NEED_REBOOT && shutdown -r"
+ExecStart=/home/core/ethos-systemd/v1/util/update-os.sh
 
 [X-Fleet]
 Global=true
