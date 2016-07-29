@@ -17,6 +17,9 @@ fi
 
 . /etc/profile.d/etcdctl.sh
 
+MACHINEID=`/etc/machine-id`
+LOCKCMD="docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --topic coreos_drain --group ${NODE_ROLE} lock $MACHINEID"
+UNLOCKCMD="docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --topic coreos_drain --group ${NODE_ROLE} unlock $MACHINEID"
 
 error() {
     if [ ! -z "$1" ]; then
@@ -24,6 +27,42 @@ error() {
     fi
     exit -1
 }
+get_lockval(){
+    etcdctl get /adobe.com/locks/coreos_drain/groups/${NODE_ROLE}/semaphore| jq --arg machineId $MACHINEID '.holders | join(" ")'
+}
+
+watch_lock() {
+    # etcdctl exec-watch doesn't work on coreos...
+    
+    orig=$(get_lockval)
+    
+    while : ; do
+	newv=$(get_lockval)
+	if [ "$orig" != "$newv" ];then
+	    break
+	fi
+	sleep 5
+    done
+    eval $*
+}
+trap_cmd(){
+    eval $UNLOCKCMD
+}
+
+while : ; do
+    $($LOCKCMD)
+    status=$?
+    if [ $status -eq 0 ]; then
+	break
+    else
+	watch_lock $LOCKCMD
+	status=$?
+	if [ $status -eq 0 ]; then
+	    echo "$MACHINE-ID got drain lock"
+	    break
+	fi
+    fi
+done
 
 # Get out local ip
 LOCAL_IP="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
@@ -79,12 +118,6 @@ find_all_mesos_docker_instances(){
     # Mesos creates docker instances for potentially many frameworks.  Marathon is just one
     docker_inspect | jq '[.[] | select( .Name | startswith("/mesos-")) | { name: .Name, id: .Id}]'
 }
-
-
-read -d '' marathon_jq <<'EOF'
-   [.tasks[] | select( .slaveId == $slaveId)|  .host as $host| .servicePorts as $outside | .ports as $inside | .appId as $appId | reduce range(0, $inside |length) as $i ( .mapping;  . + [($host+":"+($inside[$i] | tostring))] )| { host: $host, slaveId: $slaveId, appId: $appId, mappings: .} ]
-EOF
-
 
 # Get jobs assigned to this slave
 #   If tags are used, the jq can be refined

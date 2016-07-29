@@ -3,11 +3,13 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 source $DIR/../../lib/helpers.sh
+set -x
 
 # Setup cluster wide locks
 IMAGE=`etcdctl get /images/etcd-locks`
 CLUSTERWIDE_LOCKS="booster_drain coreos_drain coreos_reboot"
-set -x
+MACHINEID=`/etc/machine-id`
+
 for j in ${CLUSTERWIDE_LOCKS}; do
     etcdctl ls /adobe.com/locks/$j  >/dev/null 2>&1
     if [ $? -eq 0 ]; then
