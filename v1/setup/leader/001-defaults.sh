@@ -121,9 +121,19 @@ etcd-set /environment/services "sumologic datadog"
 ######################
 
 # effects number of simulataneous lock holder per-tier for coreos updates
-etcd-set /adobe.com/settings/etcd-locks/coreos_updates/num_worker 1
-etcd-set /adobe.com/settings/etcd-locks/coreos_updates/num_control 1
-etcd-set /adobe.com/settings/etcd-locks/coreos_updates/num_proxy 1
+etcd-set /adobe.com/settings/etcd-locks/coreos_reboot/num_worker 2
+etcd-set /adobe.com/settings/etcd-locks/coreos_reboot/num_control 1
+etcd-set /adobe.com/settings/etcd-locks/coreos_reboot/num_proxy 1
+
+# 
+etcd-set /adobe.com/settings/etcd-locks/coreos_drain/num_worker 2
+etcd-set /adobe.com/settings/etcd-locks/coreos_drain/num_control 1
+etcd-set /adobe.com/settings/etcd-locks/coreos_drain/num_proxy 1
+
+# 
+etcd-set /adobe.com/settings/etcd-locks/booster_drain/num_worker 2
+etcd-set /adobe.com/settings/etcd-locks/booster_drain/num_control 1
+etcd-set /adobe.com/settings/etcd-locks/booster_drain/num_proxy 1
 
 
 

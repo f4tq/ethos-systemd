@@ -6,7 +6,7 @@ source $DIR/../../lib/helpers.sh
 
 # Setup cluster wide locks
 IMAGE=`etcdctl get /images/etcd-locks`
-CLUSTERWIDE_LOCKS="booster_drain skopos coreos_updates"
+CLUSTERWIDE_LOCKS="booster_drain coreos_drain coreos_reboot"
 set -x
 for j in ${CLUSTERWIDE_LOCKS}; do
     etcdctl ls /adobe.com/locks/$j  >/dev/null 2>&1
