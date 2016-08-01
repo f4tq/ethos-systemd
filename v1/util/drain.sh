@@ -94,7 +94,7 @@ update_marathon_jobs(){
 #
 
 update_docker_inspect(){
-    docker inspect $(docker ps -q) > $DOCKER_INSPECT
+    docker inspect $(docker ps -q) | tee $DOCKER_INSPECT
 }
 
 error() {
@@ -149,11 +149,25 @@ find_docker_id_by_taskId(){
 #
 # slave info
 #
+# Make sure curl worked to host and that it got back something
+#
 update_slave_info() {
-    curl -SsfLk http://${LOCAL_IP}:5051/state > ${SLAVE_CACHE}
+    curl -SsfLk http://${LOCAL_IP}:5051/state > /tmp/fake
+    if [ $? -eq 0 -a -s /tmp/fake ]; then
+	mv /tmp/fake ${SLAVE_CACHE}
+	cat ${SLAVE_CACHE}
+    else
+	echo
+    fi
 }
+
 slave_info(){
-    cat ${SLAVE_CACHE}
+    if [ ! -f "${SLAVE_CACHE}" -o ! -s "${SLAVE_CACHE}" ]; then
+	update_slave_info
+    else
+	# TODO: may want to check freshness
+	cat ${SLAVE_CACHE}
+    fi
 }
 
 
@@ -251,18 +265,28 @@ drain(){
     drain_docker
 }
 
-update_slave_info
-# Getting the slave Id.
-SLAVE_ID=$( slave_info | jq .id)
-if [ -z "${SLAVE_ID}" ]; then
-    error "No slave id found.  Is the mesos-slave running?"
-fi
-SLAVE_HOST=$( slave_info | jq .hostname)
+if [ ! -z "$1" ];then
+    # Get docker info
+    
+    if [ -z "$(update_docker_inspect)" ]; then
+	# TODO: error for now, but actually edge case.
+	# Nothing is running so just drain
+	error "No docker instances"
+    fi
+    if [ -z "$(  update_slave_info )" ] ;then
+	error "No slave info. Is slave running?"
+    fi
+    # Getting the slave Id.
+    SLAVE_ID=$( slave_info | jq .id)
+    if [ -z "${SLAVE_ID}" ]; then
+	error "No slave id found.  Is the mesos-slave running?"
+    fi
+    SLAVE_HOST=$( slave_info | jq .hostname)
+    
 
-# Get docker info
-update_docker_inspect
-# Get marathon info filtered by this slave
-THIS_SLAVES_MARATHON_JOBS=$(update_marathon_jobs $SLAVE_ID)
+    # Get marathon info filtered by this slave
+    THIS_SLAVES_MARATHON_JOBS=$(update_marathon_jobs $SLAVE_ID)
+fi
 
 case "$1" in
     marathon_jobs)
