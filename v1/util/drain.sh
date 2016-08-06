@@ -15,8 +15,14 @@ if [ "${NODE_ROLE}" != "worker" ]; then
     exit 0
 fi
 
-. /etc/profile.d/etcdctl.sh
-
+if [ -f /etc/profile.d/etcdctl.sh ]; then
+    . /etc/profile.d/etcdctl.sh
+else
+    # for dc/os, export the /etc/environment
+    export $(cat /etc/environment| xargs )
+    # env ETCDCTL_PEERS is deprecated by etcdctl but still used in ethos
+    export set ETCDCTL_PEERS=${ETCDCTL_ENDPOINTS}
+fi
 STOP_TIMEOUT=20
 IMAGE=`etcdctl get /images/etcd-locks`
 MACHINEID=`cat /etc/machine-id`
@@ -45,9 +51,6 @@ SLAVE_CACHE="$tmpdir/mesos_slave_$(date +%s)"
 
     
 THIS_SLAVES_MARATHON_JOBS=""
-
-
-
 
 ##########
 
