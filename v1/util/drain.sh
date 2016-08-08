@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash 
 
 # This script assumes you already hold the appropriate lock
 # It will check to make sure and error out if the lock holder doesn't contain this host's machine-id `cat /etc/machine-id`
@@ -79,14 +79,14 @@ Given slaveId=4a98185c-2c2b-40ca-81b2-c58dfe4a1576-S1
 example_output
 
 update_marathon_jobs(){
-    SLAVE_ID="$1"
-    $(curl -sSfLk -m 10 ${MARATHON_CREDS} ${MARATHON_ENDPOINT}/v2/tasks |
-			     jq --arg slaveId ${SLAVE_ID} '[
+    SLAVE_ID=$1
+    curl -sSfLk -m 10 ${MARATHON_CREDS} ${MARATHON_ENDPOINT}/v2/tasks |
+			     jq -r --arg slaveId ${SLAVE_ID} '[
         .tasks[]  
         | select( .slaveId == $slaveId) 
-        | .host as $host| .servicePorts as $outside | .ports as $inside | .appId as $appId 
-        | reduce range(0, $inside |length) as $i ( .mapping;  . + [($host+":"+($inside[$i] | tostring))] )| { host: $host, slaveId: $slaveId, appId: $appId, mappings: .} 
-        ]')
+        | .host as $host| .servicePorts as $outside | .ports as $inside | .appId as $appId | .id as $mesos_id 
+        | reduce range(0, $inside |length) as $i ( .mapping;  . + [($host+":"+($inside[$i] | tostring))] )| { mesos_task_id: $mesos_id, host: $host, slaveId: $slaveId, appId: $appId, mappings: .} 
+        ]'
 
 }
 
@@ -146,7 +146,7 @@ find_docker_id_by_taskId(){
     if [ -z "$taskId" ]; then
 	error "Missing taskId in call to find_docker_id_by_taskId"
     fi
-    docker_inspect | jq --arg taskId "$taskId" '.[] | select(.Config.Env[] | contains($taskId ))| .Id'
+    docker_inspect | jq -r --arg taskId "$taskId" '.[] | select(.Config.Env[] | contains($taskId ))| .Id'
 }
 
 #
@@ -183,71 +183,92 @@ find_all_mesos_docker_instances(){
 marathon_jobs() {
     echo "${THIS_SLAVES_MARATHON_JOBS}"
 }
-marathon_docker_ids() {
-    for i in $(marathon_docker_jobs | jq '.[] | .mesos_task_id' ); do
+show_marathon_docker_ids() {
+    for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	docker_id=$(find_docker_id_by_taskId $i)
-	echo "mesos: $i maps to ${docker_id}"
+	echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
     done
 }
 
 host_ports() {
     # pre-made for egrep
-    marathon_jobs | jq 'reduce .[] as $list ([] ; . + $list.mappings)| join("|")'
+    marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| join("|")'
 }
 
-    just_ports() {
+just_ports() {
     # egrep ready.
     # just ports.  Put out a leading ':' after the join
-    marathon_jobs | jq 'reduce .[] as $list ([] ; . + $list.mappings)| reduce .[] as $foo ([] ; . + [($foo| split(":")|last)])| join("|:") |  if ( . | length ) > 0 then  ":" + . else . end'
+    marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| reduce .[] as $foo ([] ; . + [($foo| split(":")|last)])| join("|:") |  if ( . | length ) > 0 then  ":" + . else . end'
 }
 
 drain_tcp() {
     # stop the slave
-    TIMEOUT=[[ $SECONDS + 900 ]]
+    TIMEOUT=$(( $SECONDS + 900 )) 
     DRAIN_PORTS=1
-    if [ ! -z "$(just_ports)" ] ;then
+    if [  -z "$(just_ports)" ] ;then
 	DRAIN_PORTS=0
     fi
     while :; do
 	if [ 0 -eq ${DRAIN_PORTS} ] ;then
 	    break
 	fi
-	cnt=$(ss -t | grep ESTAB | egrep  just_ports | wc -l)
-	if [ $cnt == "0" ]; then
-	    echo "All done draining port $(just_ports)"
+	cnt=$(ss -t | grep ESTAB | egrep -c $(just_ports))
+	if [ $cnt -eq 0 ]; then
+	    echo "No more remaining connections $(just_ports).  Done draining ports"
+	    break
+        else
+	    echo "$cnt remainings connections"
 	fi
 	if [[ $SECONDS > $TIMEOUT ]]; then
-            echo "Timeout ..."
+            echo "Timeout ... with $cnt remaining connections"
+          
             break
 	fi
+        sleep 1
     done
 }
 # drain_docker cycles through docker instances started by mesos
 
+marathon_docker_ids(){
+    for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
+	echo $(find_docker_id_by_taskId $i)
+    done
+}
+marat(){
+  ID=""
+  for i in $(marathon_docker_ids); do
+     ID="$ID|$i"
+  done
+  echo $ID
+}
+
 drain_docker() {
-    for i in $(marathon_docker_jobs | jq '.[] | .mesos_task_id' ); do
-	docker_id=$(find_docker_id_by_taskId $i)
-	echo "mesos: $i maps to ${docker_id}"
-	NOW=$SECONDS
-	MAX=$((SECONDS+ ${STOP_TIMEOUT} ))
-	dead=0
-	while [ $SECONDS -lt $MAX ]; do
-	    docker stop ${docker_id}
-	    docker ps -a | grep ${docker_id} | grep -q Exited
-	    if [ $? -eq 0]; then
-		echo "$(date +%s)|drain_docker: Stopped $i/${docker_id}"
-		dead=1
-		break
-	    fi
-	done
-	if [ $dead -eq 0 ]; then
-	    echo "$(date +%s)|drain_docker: Using a hammer stopping $i/${docker_id}"
-	    docker kill ${docker_id}
-	fi
+    # stop all the docker instances
+    for i in $(marathon_docker_ids) ; do
+	echo docker stop ${i}
+    done
+    # Now see if they've all stopped  	
+    NOW=$SECONDS
+    MAX=$((SECONDS+ ${STOP_TIMEOUT} ))
+    dead=0
+    while [ $SECONDS -lt $MAX ]; do
+         cnt=$(docker ps -q | egrep -c "$(marat)")
+         if [ $cnt -eq 0 ]; then
+	     echo "$(date +%s)|drain_docker: Stopped $i/${docker_id}"
+             dead=1
+             break
+         fi
+         sleep 1
+         echo "$SECONDS. Waiting for $cnt to stop"
+    done
+    echo "Giving up.  killing docker instances"
+    for j in $(docker ps -q | egrep "$(marat)"); do
+	echo docker kill $j 
     done
 }
 
 drain(){
+    set -x
     while : ; do
 	eval $LOCKCMD
 	status=$?
@@ -280,11 +301,11 @@ if [ ! -z "$1" ];then
 	error "No slave info. Is slave running?"
     fi
     # Getting the slave Id.
-    SLAVE_ID=$( slave_info | jq .id)
+    SLAVE_ID=$( slave_info | jq -r .id)
     if [ -z "${SLAVE_ID}" ]; then
 	error "No slave id found.  Is the mesos-slave running?"
     fi
-    SLAVE_HOST=$( slave_info | jq .hostname)
+    SLAVE_HOST=$( slave_info | jq -r .hostname)
     
 
     # Get marathon info filtered by this slave
@@ -292,11 +313,14 @@ if [ ! -z "$1" ];then
 fi
 
 case "$1" in
+
     marathon_jobs)
 	marathon_jobs
 	;;
-    marathon_docker_jobs)
-	marathon_docker_ids
+    marathon_docker_ids)
+	show_marathon_docker_ids
+        set -x
+        marat
 	;;
     host_ports)
 	host_ports
