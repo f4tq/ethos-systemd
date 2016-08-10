@@ -1,7 +1,7 @@
 #!/usr/bin/bash -x
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-source $DIR/lock_helpers.sh
+source $DIR/helpers.sh
 
 SKOPOS_CLUSTERWIDE_LOCKS=/adobe.com/locks/cluster-wide
 SKOPOS_PERHOST_LOCKS=/adobe.com/locks/per-host
@@ -23,7 +23,9 @@ systemctl list-units | egrep 'dcos-mesos-slave|mesos-slave@'| awk '{ print $1}'
 #  Clusterwide
 #
 #
-
+log(){
+    echo "[$(date $+s)] $*"
+}
 lock_booster(){
     docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} lock $MACHINEID
 }

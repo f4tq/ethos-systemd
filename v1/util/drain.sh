@@ -146,12 +146,12 @@ find_all_mesos_docker_instances(){
 }
 
 marathon_jobs() {
-    echo "${THIS_SLAVES_MARATHON_JOBS}"
+    log "${THIS_SLAVES_MARATHON_JOBS}"
 }
 show_marathon_docker_ids() {
     for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	docker_id=$(find_docker_id_by_taskId $i)
-	echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
+	log "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
     done
 }
 
@@ -179,13 +179,13 @@ drain_tcp() {
 	fi
 	cnt=$(ss -t | grep ESTAB | egrep -c $(just_ports))
 	if [ $cnt -eq 0 ]; then
-	    echo "No more remaining connections $(just_ports).  Done draining ports"
+	    log "No more remaining connections $(just_ports).  Done draining ports"
 	    break
         else
-	    echo "$cnt remainings connections"
+	    log "$cnt remainings connections  "
 	fi
 	if [[ $SECONDS > $TIMEOUT ]]; then
-            echo "Timeout ... with $cnt remaining connections"
+            log "Timeout ... with $cnt remaining connections"
           
             break
 	fi
@@ -222,7 +222,7 @@ drain_docker() {
     while [ $SECONDS -lt $MAX ]; do
          cnt=$(docker ps -q | egrep -c "$(marat)")
          if [ $cnt -eq 0 ]; then
-	     echo "$(date +%s)|drain_docker: Stopped $i/${docker_id}"
+	     log "drain_docker: Stopped $i/${docker_id}"
              dead=1
              break
          fi
@@ -242,8 +242,6 @@ drain(){
 	state=$(host_state)
 	error "Can't get local host lock.  state: $state"
     fi
-    mesos_unit=$(systemctl list-units | egrep 'mesos-slave@|dcos-mesos-slave' | awk '{ print $1}')
-    
     host_lock "DRAIN"
     status=$?
     if [ $status -eq 0 ]; then
@@ -252,7 +250,11 @@ drain(){
 	state=$(host_state)
 	error "Unknown state.  Aborting"
     fi
-    echo "$(date +%s)|$MACHINE-ID got drain lock"
+
+    log "$MACHINE-ID got drain lock"
+    #mesos_unit=$(systemctl list-units | egrep 'mesos-slave@|dcos-mesos-slave' | awk '{ print $1}')
+    #systemctl stop ${mesos_unit}
+
     # update docker inspect just in case the lock took a while to get
     DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
     drain_tcp
