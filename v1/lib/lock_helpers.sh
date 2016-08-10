@@ -60,7 +60,7 @@ cluster_init(){
 	fi	
         
 	for i in control worker proxy; do
-	    docker run --net host -i --rm $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic $j --group $i status 
+	    docker run --net host -i --rm -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS}  $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic $j --group $i status 
 	    max_locks="1"
 	    x=$(etcdctl get ${SKOPOS_FEATURE_FLIP}/settings/etcd-locks/$j/num_$i 2>/dev/null )
 	    if [ $? -eq 0 -a ! -z "$x" ]; then
@@ -68,7 +68,7 @@ cluster_init(){
 	    fi
 	    if [ "1" != "${max_locks}" ]; then 
 		# allow 2 updates to happen
-		docker run --net host -i --rm $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS}  --topic $j --group $i set-max ${max_locks}
+		docker run --net host -i --rm -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS}  --topic $j --group $i set-max ${max_locks}
 	    fi
 	done 
     done
@@ -80,7 +80,7 @@ cluster_init(){
 # The id used in the lock defaults to $MACHINEID which is unique and owned by the host
 # 
 host_init(){
-    docker run --net host -i --rm $IMAGE  locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID status 
+    docker run --net host -i --rm $IMAGE  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS}  locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID status 
 }
 	
 
@@ -91,7 +91,7 @@ host_lock(){
     else
 	$reason=$1
     fi
-    docker run --net host -i --rm $IMAGE  locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID lock $reason
+    docker run --net host -i --rm $IMAGE  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID lock $reason
 }
 host_unlock(){
 
@@ -100,7 +100,7 @@ host_unlock(){
     else
 	$reason=$1
     fi
-    docker run --net host -i --rm $IMAGE  locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID unlock $reason
+    docker run --net host -i --rm $IMAGE  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS}  locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID unlock $reason
 }
 
 host_state(){
