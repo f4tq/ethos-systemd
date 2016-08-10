@@ -80,7 +80,7 @@ cluster_init(){
 # The id used in the lock defaults to $MACHINEID which is unique and owned by the host
 # 
 host_init(){
-    docker run --net host -i --rm $IMAGE  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS}  locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID status 
+    docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID status 
 }
 	
 
@@ -91,7 +91,7 @@ host_lock(){
     else
 	$reason=$1
     fi
-    docker run --net host -i --rm $IMAGE  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID lock $reason
+    docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID lock $reason
 }
 host_unlock(){
 
@@ -100,7 +100,7 @@ host_unlock(){
     else
 	$reason=$1
     fi
-    docker run --net host -i --rm $IMAGE  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS}  locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID unlock $reason
+    docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID unlock $reason
 }
 
 host_state(){
