@@ -11,23 +11,17 @@ source /etc/environment
 echo "-------Starting skopos drain-------"
 
 if [ "${NODE_ROLE}" != "worker" ]; then
-    >&2 echo "No drain for worker role ${NODE_ROLE}" 
+    >&2 echo "No drain for worker role ${NODE_ROLE}"
+        
     exit 0
 fi
 
 if [ -f /etc/profile.d/etcdctl.sh ]; then
     . /etc/profile.d/etcdctl.sh
-else
-    # for dc/os, export the /etc/environment
-    export $(cat /etc/environment| xargs )
-    # env ETCDCTL_PEERS is deprecated by etcdctl but still used in ethos
-    export set ETCDCTL_PEERS=${ETCDCTL_ENDPOINTS}
 fi
+
 STOP_TIMEOUT=20
-IMAGE=`etcdctl get /images/etcd-locks`
-MACHINEID=`cat /etc/machine-id`
-LOCKCMD="docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --topic coreos_drain --group ${NODE_ROLE} lock $MACHINEID"
-UNLOCKCMD="docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --topic coreos_drain --group ${NODE_ROLE} unlock $MACHINEID"
+
 # Get out local ip
 LOCAL_IP="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
 
@@ -46,10 +40,10 @@ fi
 tmpdir=${TMPDIR-/tmp}/skopos-$RANDOM-$$
 mkdir -p $tmpdir
 trap 'ret=$?; rmdir "$tmpdir"  2>/dev/null; exit $ret' 0
+
+# Cached files
 DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
 SLAVE_CACHE="$tmpdir/mesos_slave_$(date +%s)"
-
-    
 THIS_SLAVES_MARATHON_JOBS=""
 
 ##########
@@ -106,33 +100,6 @@ error() {
     fi
     exit -1
 }
-#
-# the semaphore value.  We need this to watch for changes.
-# There will be an update to etcdctl that fixes this but for now
-#
-get_lockval(){
-    etcdctl get /adobe.com/locks/coreos_drain/groups/${NODE_ROLE}/semaphore| jq --arg machineId $MACHINEID '.holders | join(" ")'
-}
-
-watch_lock() {
-    # etcdctl exec-watch doesn't work on coreos...
-    
-    orig=$(get_lockval)
-    
-    while : ; do
-	newv=$(get_lockval)
-	if [ "$orig" != "$newv" ];then
-	    break
-	fi
-	sleep 5
-    done
-    eval $*
-}
-
-trap_cmd(){
-    eval $UNLOCKCMD
-}
-
 
 docker_inspect(){
     cat ${DOCKER_INSPECT}
@@ -172,8 +139,6 @@ slave_info(){
 	cat ${SLAVE_CACHE}
     fi
 }
-
-
 
 find_all_mesos_docker_instances(){
     # Mesos creates docker instances for potentially many frameworks.  Marathon is just one
@@ -243,14 +208,17 @@ marat(){
 }
 
 drain_docker() {
+    
     # stop all the docker instances
     for i in $(marathon_docker_ids) ; do
 	echo docker stop ${i}
     done
-    # Now see if they've all stopped  	
+
     NOW=$SECONDS
+
     MAX=$((SECONDS+ ${STOP_TIMEOUT} ))
     dead=0
+    
     while [ $SECONDS -lt $MAX ]; do
          cnt=$(docker ps -q | egrep -c "$(marat)")
          if [ $cnt -eq 0 ]; then
@@ -261,32 +229,35 @@ drain_docker() {
          sleep 1
          echo "$SECONDS. Waiting for $cnt to stop"
     done
+    
     echo "Giving up.  killing docker instances"
     for j in $(docker ps -q | egrep "$(marat)"); do
 	echo docker kill $j 
     done
 }
 
+ 
 drain(){
-    set -x
-    while : ; do
-	eval $LOCKCMD
-	status=$?
-	if [ $status -eq 0 ]; then
-	    break
-	else
-	    watch_lock $LOCKCMD
-	    status=$?
-	    if [ $status -eq 0 ]; then
-		break
-	    fi
-	fi
-    done
+    if [ 0 -ne $(host_lock "DRAIN") ];then
+	state=$(host_state)
+	error "Can't get local host lock.  state: $state"
+    fi
+    mesos_unit=$(systemctl list-units | egrep 'mesos-slave@|dcos-mesos-slave' | awk '{ print $1}')
+    
+    host_lock "DRAIN"
+    status=$?
+    if [ $status -eq 0 ]; then
+	break
+    else
+	state=$(host_state)
+	error "Unknown state.  Aborting"
+    fi
     echo "$(date +%s)|$MACHINE-ID got drain lock"
     # update docker inspect just in case the lock took a while to get
     DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
     drain_tcp
     drain_docker
+    host_unlock "DRAIN"
 }
 
 if [ ! -z "$1" ];then

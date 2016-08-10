@@ -119,6 +119,7 @@ etcd-set /environment/services "sumologic datadog"
 ######################
 #      skopos
 ######################
+source $DIR/../../lib/lock_helpers.sh
 
 # effects number of simulataneous lock holder per-tier for coreos updates
 etcd-set /adobe.com/settings/etcd-locks/coreos_reboot/num_worker 2
