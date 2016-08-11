@@ -21,6 +21,7 @@ if [ -f /etc/profile.d/etcdctl.sh ]; then
 fi
 
 source $LOCALPATH/../lib/lock_helpers.sh
+#source $LOCALPATH/read_bridge_tcp6.sh
 
 STOP_TIMEOUT=20
 
@@ -118,7 +119,68 @@ find_docker_id_by_taskId(){
     fi
     docker_inspect | jq -r --arg taskId "$taskId" '.[] | select(.Config.Env[] | contains($taskId ))| .Id'
 }
+find_docker_pid_by_taskId(){
+    taskId="$1"
+    if [ -z "$taskId" ]; then
+	error "Missing taskId in call to find_docker_id_by_taskId"
+    fi
+    docker_inspect | jq -r --arg taskId "$taskId" '.[] | select(.Config.Env[] | contains($taskId ))| .State.Pid'
+}
+find_docker_networkmode_by_taskId(){
+    taskId="$1"
+    if [ -z "$taskId" ]; then
+	error "Missing taskId in call to find_docker_id_by_taskId"
+    fi
+    docker_inspect | jq -r --arg taskId "$taskId" '.[] | select(.Config.Env[] | contains($taskId ))| .HostConfig.NetworkMode'
+}
 
+#
+# Produces process tree given docker pid taken from docker inspect
+# 
+host_mode_listening(){
+    pid=$1
+    ps --forest -o pid= $(ps -e --no-header -o pid,ppid|awk -vp=$pid 'function r(s){print s;s=a[s];while(s){sub(",","",s);t=s;sub(",.*","",t);sub("[0-9]+","",s);r(t)}}{a[$2]=a[$2]","$1}END{r(p)}')
+}
+#
+#  Takes list of pids, finds listening sockets, and converts 0.0.0.0 into a pattern that will match any socket
+#
+listening_tcp(){
+    sudo netstat -tnlp | grep $(host_mode_listening $1| xargs -n 1 -IXX echo " -e XX") | awk '{print $4}'| sed 's/0.0.0.0/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/'
+}
+#
+#  Takes a list of patterned listening sockets and makes it friendly for grep
+#
+listening_patterns(){
+    listening_tcp $1 | xargs -n 1 -I XX echo " -e XX"
+}
+
+# ss -t -o state established
+#
+get_connections_by_task_id(){
+    taskId="$1"
+    task_pid=$(find_docker_pid_by_taskId $taskId)
+    case "$(find_docker_networkmode_by_taskId $taskId)" in
+	bridged)
+	    cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_bridge_tcp6.sh
+	    ;;
+	host)
+	    # the docker process can and will have *Multiple* child process
+	    pids=`ps --forest -o pid= $(ps -e --no-header -o pid,ppid|awk -vp=$task_pid 'function r(s){print s;s=a[s];while(s){sub(",","",s);t=s;sub(",.*","",t);sub("[0-9]+","",s);r(t)}}{a[$2]=a[$2]","$1}END{r(p)}')`
+	    # 1. first this gets the process tree for the docker process
+	    # 2. then it converts the pids in -e <pid> options for grep
+	    # 3. which is then used to filter listening ports on the host.  At this point we have a list of endpoints
+	    # 4. next, convert the 0.0.0.0:xxx into a regexp that will match any interface listening on the ports
+	    #
+	    # 
+	    listening_tcp=$(sudo netstat -tnlp | grep $(host_mode_listening $1| xargs -n 1 -IXX echo " -e XX") | awk '{print $4}'| sed 's/0.0.0.0/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/')
+	    # Now we have a list of listeners and looks for established connections
+      	    cnt=$(ss -t -o state established   | grep -E $(listening_patterns $1))
+	    ;;
+	*)
+	    2> echo "Unknown network"
+	    exit -1
+    esac
+}
 #
 # slave info
 #
@@ -169,7 +231,7 @@ just_ports() {
     marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| reduce .[] as $foo ([] ; . + [($foo| split(":")|last)])| join("|:") |  if ( . | length ) > 0 then  ":" + . else . end'
 }
 
-drain_tcp() {
+drain_tcp_od() {
     # stop the slave
     TIMEOUT=$(( $SECONDS + 900 )) 
     DRAIN_PORTS=1
