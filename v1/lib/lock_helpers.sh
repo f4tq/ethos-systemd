@@ -16,7 +16,6 @@ UPDATE_DRAIN_LOCK=coreos_drain
 REBOOT_LOCK=coreos_reboot
 CLUSTERWIDE_LOCKS="${BOOSTER_LOCK} ${UPDATE_DRAIN_LOCK} ${REBOOT_LOCK}"
 
-systemctl list-units | egrep 'dcos-mesos-slave|mesos-slave@'| awk '{ print $1}'
 
 #
 #
@@ -24,7 +23,7 @@ systemctl list-units | egrep 'dcos-mesos-slave|mesos-slave@'| awk '{ print $1}'
 #
 #
 log(){
-    echo "[$(date $+s)] $*"
+    echo "[$(date +%s)] $*"
 }
 lock_booster(){
     docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} lock $MACHINEID

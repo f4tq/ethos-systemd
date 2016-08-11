@@ -8,7 +8,7 @@ LOCALPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 source /etc/environment
 
-echo "-------Starting skopos drain-------"
+2> echo "-------Starting skopos drain-------"
 
 if [ "${NODE_ROLE}" != "worker" ]; then
     >&2 echo "No drain for worker role ${NODE_ROLE}"
@@ -20,10 +20,13 @@ if [ -f /etc/profile.d/etcdctl.sh ]; then
     . /etc/profile.d/etcdctl.sh
 fi
 
+source $LOCALPATH/../lib/lock_helpers.sh
+
 STOP_TIMEOUT=20
 
 # Get out local ip
 LOCAL_IP="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
+MESOS_UNIT=$(systemctl list-units | egrep 'dcos-mesos-slave|mesos-slave@'| awk '{ print $1}' )
 
 # Get marathon info from etcd
 MARATHON_USER="$(etcdctl get /marathon/config/username)"
@@ -146,12 +149,12 @@ find_all_mesos_docker_instances(){
 }
 
 marathon_jobs() {
-    log "${THIS_SLAVES_MARATHON_JOBS}"
+    echo "${THIS_SLAVES_MARATHON_JOBS}"
 }
 show_marathon_docker_ids() {
     for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	docker_id=$(find_docker_id_by_taskId $i)
-	log "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
+	echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
     done
 }
 
@@ -252,8 +255,8 @@ drain(){
     fi
 
     log "$MACHINE-ID got drain lock"
-    #mesos_unit=$(systemctl list-units | egrep 'mesos-slave@|dcos-mesos-slave' | awk '{ print $1}')
-    #systemctl stop ${mesos_unit}
+
+    #systemctl stop ${MESOS_UNIT}
 
     # update docker inspect just in case the lock took a while to get
     DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
@@ -292,7 +295,6 @@ case "$1" in
 	;;
     marathon_docker_ids)
 	show_marathon_docker_ids
-        set -x
         marat
 	;;
     host_ports)
