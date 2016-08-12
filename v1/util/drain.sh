@@ -420,7 +420,7 @@ case "$1" in
 	log "host state(BEFORE lock): $(host_state)"
 	lock_host "DRAIN"
 	if [ $? -ne 0 ]; then
-	    log "host lock failed.  You must use the host state value"
+	    log "WARNING: host lock failed.  You must use the host state value"
 	fi
 	log "host state(AFTER lock): $(host_state)"
 	;;
@@ -428,7 +428,7 @@ case "$1" in
 	log "host state(BEFORE unlock): $(host_state)"
 	unlock_host "DRAIN"
 	if [ $? -ne 0 ]; then
-	    log "host unlock failed.  You must use the host state value"
+	    log "WARNING: host unlock failed.  You must use the host state value"
 	fi
 	log "host state(AFTER unlock): $(host_state)"
 	;;
@@ -436,39 +436,48 @@ case "$1" in
 	log "drain lock state(BEFORE lock): $(drain_state)"
 	lock_drain
 	if [ $? -ne 0 ]; then
-	    log "drain lock failed"
+	    log "WARNING: drain lock failed"
 	fi
 	log "drain lock state: $(drain_state)"
 	;;
     unlock_drain)
 	log "drain locks(BEFORE): $(drain_state)"
 	unlock_drain
+	if [ $? -ne 0 ]; then
+	    log "WARNING: drain unlock failed"
+	fi
 	log "drain locks(AFTER): $(drain_state)"
 	;;
     lock_reboot)
 	log "reboot lock state(BEFORE lock): $(reboot_state)"
 	lock_reboot
 	if [ $? -ne 0 ]; then
-	    log "reboot lock failed"
+	    log "WARNING: reboot lock failed"
 	fi
 	log "reboot lock state(AFTER): $(reboot_state)"
 	;;
     unlock_reboot)
 	log "reboot unlock(BEFORE): $(reboot_state)"
 	unlock_reboot
+	if [ $? -ne 0 ]; then
+	    log "WARNING: reboot unlock failed"
+	fi
 	log "reboot unlock(AFTER): $(reboot_state)"
 	;;
     lock_booster)
 	log "booster lock state(BEFORE lock): $(booster_state)"
 	lock_booster
 	if [ $? -ne 0 ]; then
-	    log "booster lock failed"
+	    log "WARNING: booster lock failed"
 	fi
 	log "booster lock state(AFTER): $(booster_state)"
 	;;
     unlock_booster)
 	log "booster unlock(BEFORE): $(booster_state)"
 	unlock_booster
+	if [ $? -ne 0 ]; then
+	    log "WARNING: booster unlock failed"
+	fi
 	log "booster unlock(AFTER): $(booster_state)"
 	;;
 
