@@ -183,23 +183,24 @@ get_connections_by_task_id(){
 	    ;;
 	host)
 	    # the docker process can and will have *Multiple* child process
-	    pids=`ps --forest -o pid= $(ps -e --no-header -o pid,ppid|awk -vp=$task_pid 'function r(s){print s;s=a[s];while(s){sub(",","",s);t=s;sub(",.*","",t);sub("[0-9]+","",s);r(t)}}{a[$2]=a[$2]","$1}END{r(p)}')`
+	    pids=$(ps --forest -o pid= $(ps -e --no-header -o pid,ppid|awk -vp=${task_pid} 'function r(s){print s;s=a[s];while(s){sub(",","",s);t=s;sub(",.*","",t);sub("[0-9]+","",s);r(t)}}{a[$2]=a[$2]","$1}END{r(p)}'))
 	    # 1. first this gets the process tree for the docker process
 	    # 2. then it converts the pids in -e <pid> options for grep
 	    # 3. which is then used to filter listening ports on the host.  At this point we have a list of endpoints
 	    # 4. next, convert the 0.0.0.0:xxx into a regexp that will match any interface listening on the ports
 	    #
 	    # 
-	    listening_tcp=$(sudo netstat -tnlp | grep $(host_mode_listening $1| xargs -n 1 -IXX echo " -e XX") | awk '{print $4}'| sed 's/0.0.0.0/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/')
+	    listening_tcp=$(sudo netstat -tnlp | grep $(host_mode_listening ${task_pid}| xargs -n 1 -IXX echo " -e XX") | awk '{print $4}'| sed 's/0.0.0.0/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/')
 	    # Now we have a list of listeners and looks for established connections
 	    # tcp4 addresses for now
 	    #      	  Add | awk '{ print substr($0, index($0,$3)) }' to chop off leading recvQ/sendQ
 	    #
 	    CNT="-c"
 	    if $verbose ;  then
-		CNT=""
+		ss -tn4 -o state established   | grep  -E $(listening_patterns ${task_pid}) |awk '{ print substr($0, index($0,$3)) }'
+	    else
+		ss -tn4 -o state established   | grep -c -E $(listening_patterns ${task_pid})
 	    fi
-	    ss -tn4 -o state established   | grep $CNT -E $(listening_patterns $1) 
 
 	    ;;
 	*)
@@ -254,7 +255,6 @@ show_marathon_docker_pids() {
 }
 show_marathon_connections() {
     for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
-	echo "mesos_task_id:" 
 	get_connections_by_task_id $i true
     done
 }
@@ -275,22 +275,21 @@ drain_tcp(){
     while :; do
 	cnt=0
 	for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
-	    echo "mesos_task_id:" 
 	    jj=$(get_connections_by_task_id $i)
 	    cnt=$(( $cnt + $jj ))
 	done
 	if [ $cnt -eq 0 ]; then
-	    log "Connections at zero"
+	    log "drain_tcp| Connections at zero"
 	    break
 	fi
 	if [[ $SECONDS > $TIMEOUT ]]; then
-            log "Timeout ... with $cnt remaining connections"
+            log "drain_tcp| Timeout ... with $cnt remaining connections"
             break
 	fi
-	log "Waiting for $cnt"
+	log "drain_tcp| Waiting for $cnt more connections $SECONDS->$TIMEOUT"
         sleep 1
-	
     done
+    log
 }
     
 drain_tcp_old() {
