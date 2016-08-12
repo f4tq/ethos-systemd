@@ -171,9 +171,9 @@ get_connections_by_task_id(){
 	verbose=true
     fi
     task_pid=$(find_docker_pid_by_taskId $taskId)
-    
-    case "$(find_docker_networkmode_by_taskId $taskId)" in
-	bridged)
+    mode=$(find_docker_networkmode_by_taskId $taskId)
+    case "$mode" in
+	bridge)
 	    if $verbose; then
 		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_bridge_tcp6.sh
 	    else
@@ -203,7 +203,7 @@ get_connections_by_task_id(){
 
 	    ;;
 	*)
-	    2> echo "Unknown network;  This can happen EASILY with docker as user can define their own network types/bridges etc/"
+	    2> echo "Unknown network type: $mode  This can happen EASILY with docker as user can define their own network types/bridges etc/"
 	    exit -1
     esac
 }
@@ -276,7 +276,7 @@ drain_tcp(){
 	cnt=0
 	for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	    echo "mesos_task_id:" 
-	    jj=get_connections_by_task_id $i
+	    jj=$(get_connections_by_task_id $i)
 	    cnt=$(( $cnt + $jj ))
 	done
 	if [ $cnt -eq 0 ]; then
