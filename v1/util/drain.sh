@@ -291,33 +291,7 @@ drain_tcp(){
     done
     log
 }
-    
-drain_tcp_old() {
-    # stop the slave
-    TIMEOUT=$(( $SECONDS + 900 )) 
-    DRAIN_PORTS=1
-    if [  -z "$(just_ports)" ] ;then
-	DRAIN_PORTS=0
-    fi
-    while :; do
-	if [ 0 -eq ${DRAIN_PORTS} ] ;then
-	    break
-	fi
-	cnt=$(ss -t | grep ESTAB | egrep -c $(just_ports))
-	if [ $cnt -eq 0 ]; then
-	    log "No more remaining connections $(just_ports).  Done draining ports"
-	    break
-        else
-	    log "$cnt remainings connections  "
-	fi
-	if [[ $SECONDS > $TIMEOUT ]]; then
-            log "Timeout ... with $cnt remaining connections"
-          
-            break
-	fi
-        sleep 1
-    done
-}
+
 # drain_docker cycles through docker instances started by mesos
 
 marathon_docker_ids(){
@@ -364,11 +338,11 @@ drain_docker() {
 
  
 drain(){
-    if [ 0 -ne $(host_lock "DRAIN") ];then
+    if [ 0 -ne $(lock_host "DRAIN") ];then
 	state=$(host_state)
 	error "Can't get local host lock.  state: $state"
     fi
-    host_lock "DRAIN"
+    lock_host "DRAIN"
     status=$?
     if [ $status -eq 0 ]; then
 	break
@@ -385,7 +359,7 @@ drain(){
     DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
     drain_tcp
     drain_docker
-    host_unlock "DRAIN"
+    unlock_host "DRAIN"
 }
 
 if [ ! -z "$1" ];then
@@ -441,6 +415,32 @@ case "$1" in
     drain)
 	drain_tcp
 	drain_docker
+	;;
+    lock_host)
+	set -x
+	lock_host "DRAIN"
+	host_state
+	set +x
+	;;
+    unlock_host)
+	set -x
+	host_state
+	unlock_host "DRAIN"
+	host_state
+	set +x
+	;;
+    lock_drain)
+	set -x
+	lock_drain "DRAIN"
+	drain_state
+	set +x
+	;;
+    unlock_drain)
+	set -x
+	drain_state
+	unlock_drain "DRAIN"
+	drain_state
+	set +x
 	;;
 
     *)

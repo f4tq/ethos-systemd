@@ -33,11 +33,11 @@ unlock_booster(){
     docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} unlock $MACHINEID
 }    
 
-lock_update(){
+lock_drain(){
     docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${UPDATE_DRAIN_LOCK} --group ${NODE_ROLE} lock $MACHINEID
 }
 
-unlock_update(){
+unlock_drain(){
     docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${UPDATE_DRAIN_LOCK} --group ${NODE_ROLE} unlock $MACHINEID
 }
 
@@ -84,7 +84,7 @@ host_init(){
 	
 
 # you must provide a reason such as REBOOT, DRAIN then unlock with the same key or fail	
-host_lock(){
+lock_host(){
     if [ -z "$1" ]; then
 	reason=$MACHINEID
     else
@@ -92,7 +92,7 @@ host_lock(){
     fi
     docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID lock $reason
 }
-host_unlock(){
+unlock_host(){
 
     if [ -z "$1" ]; then
 	reason=$MACHINEID
@@ -149,12 +149,12 @@ watch_booster_lock(){
 watch_reboot_lock(){
     watch_clusterwide_lock ${REBOOT_LOCK} $MACHINEID $*
 }
-cluster_drain_val(){
+drain_state(){
     cluster_lock_val ${UPDATE_DRAIN_LOCK} ${NODE_ROLE}
 }
-cluster_reboot_val(){
+reboot_state(){
     cluster_lock_val ${REBOOT_LOCK} ${NODE_ROLE}
 }
-cluster_booster_val(){
+booster_state(){
     cluster_lock_val ${BOOSTER_LOCK} ${NODE_ROLE}
 }
