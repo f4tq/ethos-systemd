@@ -104,7 +104,9 @@ error() {
     fi
     exit -1
 }
-
+#
+# cached file rep. docker inspect can be slow
+#
 docker_inspect(){
     cat ${DOCKER_INSPECT}
 }
@@ -119,6 +121,9 @@ find_docker_id_by_taskId(){
     fi
     docker_inspect | jq -r --arg taskId "$taskId" '.[] | select(.Config.Env[] | contains($taskId ))| .Id'
 }
+#
+#  Return pid of docker task.  Can be used trace all processes in a docker instance
+#
 find_docker_pid_by_taskId(){
     taskId="$1"
     if [ -z "$taskId" ]; then
@@ -126,6 +131,9 @@ find_docker_pid_by_taskId(){
     fi
     docker_inspect | jq -r --arg taskId "$taskId" '.[] | select(.Config.Env[] | contains($taskId ))| .State.Pid'
 }
+#
+# Parses docker inspect to return tasks Network mode.
+#
 find_docker_networkmode_by_taskId(){
     taskId="$1"
     if [ -z "$taskId" ]; then
@@ -158,10 +166,20 @@ listening_patterns(){
 #
 get_connections_by_task_id(){
     taskId="$1"
+    verbose=false
+    if [ ! -z "$2" ];then
+	verbose=true
+    fi
     task_pid=$(find_docker_pid_by_taskId $taskId)
+    
     case "$(find_docker_networkmode_by_taskId $taskId)" in
 	bridged)
-	    cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_bridge_tcp6.sh
+	    if $verbose; then
+		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_bridge_tcp6.sh
+	    else
+		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_bridge_tcp6.sh | wc -l
+	    fi
+	    
 	    ;;
 	host)
 	    # the docker process can and will have *Multiple* child process
@@ -174,13 +192,22 @@ get_connections_by_task_id(){
 	    # 
 	    listening_tcp=$(sudo netstat -tnlp | grep $(host_mode_listening $1| xargs -n 1 -IXX echo " -e XX") | awk '{print $4}'| sed 's/0.0.0.0/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/')
 	    # Now we have a list of listeners and looks for established connections
-      	    cnt=$(ss -t -o state established   | grep -E $(listening_patterns $1))
+	    # tcp4 addresses for now
+	    #      	  Add | awk '{ print substr($0, index($0,$3)) }' to chop off leading recvQ/sendQ
+	    #
+	    CNT="-c"
+	    if $verbose ;  then
+		CNT=""
+	    fi
+	    ss -tn4 -o state established   | grep $CNT -E $(listening_patterns $1) 
+
 	    ;;
 	*)
-	    2> echo "Unknown network"
+	    2> echo "Unknown network;  This can happen EASILY with docker as user can define their own network types/bridges etc/"
 	    exit -1
     esac
 }
+
 #
 # slave info
 #
@@ -219,6 +246,18 @@ show_marathon_docker_ids() {
 	echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
     done
 }
+show_marathon_docker_pids() {
+    for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
+	docker_pid=$(find_docker_pid_by_taskId $i)
+	echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_pid}"
+    done
+}
+show_marathon_connections() {
+    for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
+	echo "mesos_task_id:" 
+	get_connections_by_task_id $i true
+    done
+}
 
 host_ports() {
     # pre-made for egrep
@@ -230,8 +269,31 @@ just_ports() {
     # just ports.  Put out a leading ':' after the join
     marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| reduce .[] as $foo ([] ; . + [($foo| split(":")|last)])| join("|:") |  if ( . | length ) > 0 then  ":" + . else . end'
 }
-
-drain_tcp_od() {
+drain_tcp(){
+    # stop the slave
+    TIMEOUT=$(( $SECONDS + 900 )) 
+    while :; do
+	cnt=0
+	for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
+	    echo "mesos_task_id:" 
+	    jj=get_connections_by_task_id $i
+	    cnt=$(( $cnt + $jj ))
+	done
+	if [ $cnt -eq 0 ]; then
+	    log "Connections at zero"
+	    break
+	fi
+	if [[ $SECONDS > $TIMEOUT ]]; then
+            log "Timeout ... with $cnt remaining connections"
+            break
+	fi
+	log "Waiting for $cnt"
+        sleep 1
+	
+    done
+}
+    
+drain_tcp_old() {
     # stop the slave
     TIMEOUT=$(( $SECONDS + 900 )) 
     DRAIN_PORTS=1
@@ -359,6 +421,12 @@ case "$1" in
 	show_marathon_docker_ids
         marat
 	;;
+    marathon_docker_pids)
+	show_marathon_docker_pids
+	;;
+    marathon_connections)
+	show_marathon_connections
+	;;
     host_ports)
 	host_ports
 	;;
@@ -384,6 +452,9 @@ Ethos assumptions:  All endpoints are in etcd and that all nodes have access to 
 host_ports - outputs the pipe separated list ip:ports for this listening on this slave
 just_ports - is just the ports separated by pipes for grep
 marathon_jobs - outputs json with the mesos_task_id
+marathon_docker_ids -- terse list of docker instance ids
+marathon_docker_pids -- list of pids 
+show_marathon_connections -- show all ESTABLISHED connection for this host related to marathon tasks.  Both 'host' and 'bridged'
 marathon_docker_jobs - takes the output of marathon_jobs and search docker_inspect in a xref into the .Config.Env for the task id.  Mesos sets the task id into the docker instances it starts.
 drain_tcp - stops the mesos slave and waits for all the ports coming from host_ports in an ESTABLISHED state to drop to zero.
 drain_docker - takes 
