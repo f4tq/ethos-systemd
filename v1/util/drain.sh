@@ -417,35 +417,64 @@ case "$1" in
 	drain_docker
 	;;
     lock_host)
-	set -x
+	log "host state(BEFORE lock): $(host_state)"
 	lock_host "DRAIN"
-	host_state
-	set +x
+	if [ $? -ne 0 ]; then
+	    log "host lock failed.  You must use the host state value"
+	fi
+	log "host state(AFTER lock): $(host_state)"
 	;;
     unlock_host)
-	set -x
-	host_state
+	log "host state(BEFORE unlock): $(host_state)"
 	unlock_host "DRAIN"
-	host_state
-	set +x
+	if [ $? -ne 0 ]; then
+	    log "host unlock failed.  You must use the host state value"
+	fi
+	log "host state(AFTER unlock): $(host_state)"
 	;;
     lock_drain)
-	set -x
-	lock_drain "DRAIN"
-	drain_state
-	set +x
+	log "drain lock state(BEFORE lock): $(drain_state)"
+	lock_drain
+	if [ $? -ne 0 ]; then
+	    log "drain lock failed"
+	fi
+	log "drain lock state: $(drain_state)"
 	;;
     unlock_drain)
-	set -x
-	drain_state
-	unlock_drain "DRAIN"
-	drain_state
-	set +x
+	log "drain locks(BEFORE): $(drain_state)"
+	unlock_drain
+	log "drain locks(AFTER): $(drain_state)"
+	;;
+    lock_reboot)
+	log "reboot lock state(BEFORE lock): $(reboot_state)"
+	lock_reboot
+	if [ $? -ne 0 ]; then
+	    log "reboot lock failed"
+	fi
+	log "reboot lock state(AFTER): $(reboot_state)"
+	;;
+    unlock_reboot)
+	log "reboot unlock(BEFORE): $(reboot_state)"
+	unlock_reboot
+	log "reboot unlock(AFTER): $(reboot_state)"
+	;;
+    lock_booster)
+	log "booster lock state(BEFORE lock): $(booster_state)"
+	lock_booster
+	if [ $? -ne 0 ]; then
+	    log "booster lock failed"
+	fi
+	log "booster lock state(AFTER): $(booster_state)"
+	;;
+    unlock_booster)
+	log "booster unlock(BEFORE): $(booster_state)"
+	unlock_booster
+	log "booster unlock(AFTER): $(booster_state)"
 	;;
 
     *)
         echo <<EOF 
-Usage: drain {marathon_jobs|marathon_docker_jobs|host_ports|just_ports|drain_tcp|drain_docker}
+Usage: drain {marathon_jobs|marathon_docker_ids|marathon_docker_pids|marathon_docker_connections|host_ports|just_ports|drain_tcp|drain_docker|drain|[un]lock_host|[un]lock_drain|[un]lock_reboot|[un]lock_booster}
 Ethos assumptions:  All endpoints are in etcd and that all nodes have access to etcd.
 
 host_ports - outputs the pipe separated list ip:ports for this listening on this slave
@@ -453,10 +482,36 @@ just_ports - is just the ports separated by pipes for grep
 marathon_jobs - outputs json with the mesos_task_id
 marathon_docker_ids -- terse list of docker instance ids
 marathon_docker_pids -- list of pids 
-show_marathon_connections -- show all ESTABLISHED connection for this host related to marathon tasks.  Both 'host' and 'bridged'
+marathon_connections -- show all ESTABLISHED connection for this host related to marathon tasks.  Both 'host' and 'bridged'
 marathon_docker_jobs - takes the output of marathon_jobs and search docker_inspect in a xref into the .Config.Env for the task id.  Mesos sets the task id into the docker instances it starts.
 drain_tcp - stops the mesos slave and waits for all the ports coming from host_ports in an ESTABLISHED state to drop to zero.
 drain_docker - takes 
+drain   - locks host-lock 
+            - if it's not already locked.  
+        - locks the drain cluster-wide lock
+        - grabs mesos-slave,docker, and marathon data
+        - stops mesos
+        - call drain_tcp which works with host and bridge network types
+        - calls drain_docker which calls docker stop, waits a period of time to ensure all instances stop, then calls docker kill
+        - unlocks cluster-wide lock
+        - unlocks host lock
+You can also manipulate locks which can be useful it a lock is in an undesirable state i.e. machine crashed while holding a lock 
+
+-- host lock -- 
+Each host has it own locks.  The locks in etcd are named after the machine id (cat /etc/machine-id).  The values held in the lock should be the task the host is locked for.  You unlock it using the same host state value.  This value is returned with all *lock* calls in this cli
+
+lock_host  
+unlock_host
+
+-- cluster wide locks ---
+Cluster wide lock values are machine-ids.  You don't provide a value for these directly.
+
+lock_drain  -- limits the number of simulataneous drains in the cluster.  This can be different for each controlled by tier
+unlock_drain
+lock_reboot -- limits the number of simulataneous reboots in the cluster.  This can be different for each controlled by tier
+unlock_reboot
+lock_booster -- limits the number of simulataneous booster locks in the cluster.  This can be different for each controlled by tier
+unlock_booster
 
 EOF
         exit 1

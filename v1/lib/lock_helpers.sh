@@ -88,7 +88,7 @@ lock_host(){
     if [ -z "$1" ]; then
 	reason=$MACHINEID
     else
-	$reason=$1
+	reason=$1
     fi
     docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID lock $reason
 }
@@ -97,13 +97,13 @@ unlock_host(){
     if [ -z "$1" ]; then
 	reason=$MACHINEID
     else
-	$reason=$1
+	reason=$1
     fi
     docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID unlock $reason
 }
 
 host_state(){
-    etcdctl get ${SKOPOS_PERHOST_LOCKS}/groups/$MACHINEID/semaphore| jq -r --arg machineId $MACHINEID '.holders | join(" ")'
+    etcdctl get ${SKOPOS_PERHOST_LOCKS}/$MACHINEID| jq -r --arg machineId $MACHINEID '.holders | join(" ")'
 }
 lock_error(){
     if [ ! -z "$1" ];then
@@ -121,7 +121,7 @@ cluster_lock_val(){
 	lock_error "You must provide one of '${CLUSTERWIDE_LOCKS}'"
     fi
     topic=$1
-    if [ ! -z "$2" ]; then tier=$2 else tier=${NODE_ROLE} ; fi
+    if [ ! -z "$2" ]; then tier=$2;  else tier=${NODE_ROLE} ; fi
 
     etcdctl get ${SKOPOS_CLUSTERWIDE_LOCKS}/$topic/groups/$tier/semaphore| jq -r --arg machineId $MACHINEID '.holders | join(" ")'
 }
