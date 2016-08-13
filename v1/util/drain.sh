@@ -21,7 +21,6 @@ if [ -f /etc/profile.d/etcdctl.sh ]; then
 fi
 
 source $LOCALPATH/../lib/lock_helpers.sh
-#source $LOCALPATH/read_bridge_tcp6.sh
 
 STOP_TIMEOUT=20
 
@@ -261,7 +260,7 @@ show_marathon_connections() {
 
 host_ports() {
     # pre-made for egrep
-    marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| join("|")'
+    marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| join[("|")'
 }
 
 just_ports() {
@@ -353,7 +352,7 @@ drain(){
 
     log "$MACHINE-ID got drain lock"
 
-    #systemctl stop ${MESOS_UNIT}
+    systemctl stop ${MESOS_UNIT}
 
     # update docker inspect just in case the lock took a while to get
     DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
@@ -481,9 +480,33 @@ case "$1" in
 	log "booster unlock(AFTER): $(booster_state)"
 	;;
 
+    am_drain_holder)
+	am_drain_holder
+	;;
+    am_reboot_holder)
+	am_booster_holder
+	;;
+    am_booster_holder)
+	am_booster_holder
+	;;
+
+    host_state)
+	host_state
+	;;
+    drain_state)
+	drain_state
+	;;
+    booster_state)
+	booster_state
+	;;
+    reboot_state)
+	reboot_state
+	;;
+    
+    
     *)
         echo <<EOF 
-Usage: drain {marathon_jobs|marathon_docker_ids|marathon_docker_pids|marathon_docker_connections|host_ports|just_ports|drain_tcp|drain_docker|drain|[un]lock_host|[un]lock_drain|[un]lock_reboot|[un]lock_booster}
+Usage: drain {marathon_jobs|marathon_docker_ids|marathon_docker_pids|marathon_docker_connections|host_ports|just_ports|drain_tcp|drain_docker|drain|[un]lock_host|[un]lock_drain|[un]lock_reboot|[un]lock_booster|[host|drain|booster|reboot]_state,am_[drain,booster,reboot]_holder}
 Ethos assumptions:  All endpoints are in etcd and that all nodes have access to etcd.
 
 host_ports - outputs the pipe separated list ip:ports for this listening on this slave
@@ -511,6 +534,7 @@ Each host has it own locks.  The locks in etcd are named after the machine id (c
 
 lock_host  
 unlock_host
+host_state -- returns the current value of the host lock i.e. DRAIN.
 
 -- cluster wide locks ---
 Cluster wide lock values are machine-ids.  You don't provide a value for these directly.
@@ -521,6 +545,11 @@ lock_reboot -- limits the number of simulataneous reboots in the cluster.  This 
 unlock_reboot
 lock_booster -- limits the number of simulataneous booster locks in the cluster.  This can be different for each controlled by tier
 unlock_booster
+
+drain_state  -- returns the list of machine-ids currently in possesion of the lock.  It can be empty or multiple
+booster_state
+reboot_state 
+
 
 EOF
         exit 1

@@ -103,7 +103,7 @@ unlock_host(){
 }
 
 host_state(){
-    etcdctl get ${SKOPOS_PERHOST_LOCKS}/$MACHINEID| jq -r --arg machineId $MACHINEID '.holders | join(" ")'
+    etcdctl get ${SKOPOS_PERHOST_LOCKS}/$MACHINEID| jq -r --arg machineId $MACHINEID '.holders|(if length > 0 then (.| join(" ")) else "" end)'
 }
 lock_error(){
     if [ ! -z "$1" ];then
@@ -123,7 +123,20 @@ cluster_lock_val(){
     topic=$1
     if [ ! -z "$2" ]; then tier=$2;  else tier=${NODE_ROLE} ; fi
 
-    etcdctl get ${SKOPOS_CLUSTERWIDE_LOCKS}/$topic/groups/$tier/semaphore| jq -r --arg machineId $MACHINEID '.holders | join(" ")'
+    etcdctl get ${SKOPOS_CLUSTERWIDE_LOCKS}/$topic/groups/$tier/semaphore| jq -r --arg machineId $MACHINEID '.holders|(if length > 0 then (.| join(" ")) else "" end)'
+}
+
+am_cluster_lock_holder(){
+    if [ -z "$1" ]; then
+	lock_error "You must provide one of '${CLUSTERWIDE_LOCKS}'"
+    fi
+    topic=$1
+    if [  -z "$2" ]; then
+	lock_error "You must provide one of '${CLUSTERWIDE_LOCKS}' with a tier [worker,control,proxy]"
+    fi
+    tier=$2
+
+    etcdctl get ${SKOPOS_CLUSTERWIDE_LOCKS}/$topic/groups/$tier/semaphore| jq --arg machineId $MACHINEID '.holders|(length > 0 and (.[] | contains($machineId)))'
 }
 
 
@@ -158,3 +171,14 @@ reboot_state(){
 booster_state(){
     cluster_lock_val ${BOOSTER_LOCK} ${NODE_ROLE}
 }
+
+am_drain_holder(){
+    am_cluster_lock_holder ${UPDATE_DRAIN_LOCK} ${NODE_ROLE}
+}
+am_reboot_holder(){
+    am_cluster_lock_holder ${REBOOT_LOCK} ${NODE_ROLE}
+}
+am_booster_holder(){
+    am_cluster_lock_holder ${BOOSTER_LOCK} ${NODE_ROLE}
+}
+
