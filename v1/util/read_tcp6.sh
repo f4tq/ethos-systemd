@@ -74,22 +74,65 @@ enum {
     TCP_MAX_STATES  /* Leave at the end! */
 };
 EOF
+
+
+function usage(){
+    if [ ! "$1" ];then
+	echo "$1"
+    fi
+            cat <<EOF
+
+$0 Dump connections stored in /proc/<your pid>/net/tcp6
+ Options:
+   -L Dump listeners.  Default: false
+   -E Dump established. Default: true
+EOF
+        exit -1
+}
+
+listen=false
+established=false
+mode=""
+
+while getopts LE opt; do
+    case $opt in
+	L)
+            listen=true
+            ;;
+	E)
+            established=true
+            ;;
+	*)
+            usage "unknown option '$opt"
+            ;;
+    esac
+done
+
+if [ ! $listen -a ! $established ]; then
+    usage "Please choose listen (-L ) or established (-E)"
+fi
+
+shift $((OPTIND -1))
+
 while read num dest_host_port src_host_port st _ _ _ _ _ inode _; do
     
     if [[ ${dest_host_port} =~ ^[0-9a-fA-F]{32}:[0-9a-fA-F]{4}$  ]] && [[ ${src_host_port} =~ ^[0-9a-fA-F]{32}:[0-9a-fA-F]{4}$  ]]  ;then
 	st_num=$(printf "%d" 0x$st)
 	case "$st" in
 	    "0A")
-	    # Listen
-	    # skip list
-		     
-	    ;;
+		# Listen
+		# skip list
+		if $listen ; then
+		    printf "%s %s\n" $(decodeAddress ${src_host_port}) $(decodeAddress ${dest_host_port})
+		fi
+		;;
 	    "01")
-		printf "%s %s\n" $(decodeAddress ${src_host_port}) $(decodeAddress ${dest_host_port})
-	    ;;
+		if $established; then
+		    printf "%s %s\n" $(decodeAddress ${src_host_port}) $(decodeAddress ${dest_host_port})
+		fi
+		;;
 	    *)
 		# skip TCP_FIN_WAIT*/TCP_SYN*/TCP_CLOS*/*ACK
 	esac
     fi
 done < "${1:-/dev/stdin}"
-

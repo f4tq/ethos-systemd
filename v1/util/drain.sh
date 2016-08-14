@@ -42,6 +42,7 @@ fi
 # 
 tmpdir=${TMPDIR-/tmp}/skopos-$RANDOM-$$
 mkdir -p $tmpdir
+
 trap 'ret=$?; rmdir "$tmpdir"  2>/dev/null; exit $ret' 0
 
 # Cached files
@@ -144,7 +145,7 @@ find_docker_networkmode_by_taskId(){
 #
 # Produces process tree given docker pid taken from docker inspect
 # 
-host_mode_listening(){
+process_list(){
     pid=$1
     ps --forest -o pid= $(ps -e --no-header -o pid,ppid|awk -vp=$pid 'function r(s){print s;s=a[s];while(s){sub(",","",s);t=s;sub(",.*","",t);sub("[0-9]+","",s);r(t)}}{a[$2]=a[$2]","$1}END{r(p)}')
 }
@@ -152,17 +153,33 @@ host_mode_listening(){
 #  Takes list of pids, finds listening sockets, and converts 0.0.0.0 into a pattern that will match any socket
 #
 listening_tcp(){
-    sudo netstat -tnlp | grep $(host_mode_listening $1| xargs -n 1 -IXX echo " -e XX") | awk '{print $4}'| sed 's/0.0.0.0/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/'
+    sudo netstat -tnlp | grep $(process_list $1| xargs -n 1 -IXX echo " -e XX") 
 }
 #
 #  Takes a list of patterned listening sockets and makes it friendly for grep
 #
 listening_patterns(){
-    listening_tcp $1 | xargs -n 1 -I XX echo " -e XX"
+    listening_tcp $1 | awk '{print $4}'| sed 's/0.0.0.0/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/'| xargs -n 1 -I XX echo " -e XX"
+}
+get_listeners(){
+    pid=$1
+    for hp in $(listening_tcp $pid |awk '{print $4}'); do
+	port=$(echo $hp | grep -o '[^:]*$')
+	host=$(echo $hp | sed "s/:$port\$//")
+#	echo "host: $host"
+	#	echo "port: $port"
+	case $host in
+	    '::'|'0.0.0.0'|'*')
+		host='*'
+	esac
+	echo "$host;$port"
+    done
 }
 
 # ss -t -o state established
 #
+
+	    
 get_connections_by_task_id(){
     taskId="$1"
     verbose=false
@@ -174,9 +191,9 @@ get_connections_by_task_id(){
     case "$mode" in
 	bridge)
 	    if $verbose; then
-		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_bridge_tcp6.sh
+		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_bridge.sh -E
 	    else
-		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_bridge_tcp6.sh | wc -l
+		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_bridge.sh -E | wc -l
 	    fi
 	    
 	    ;;
@@ -252,6 +269,14 @@ show_marathon_docker_pids() {
 	echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_pid}"
     done
 }
+show_marathon_docker_pid_listeners() {
+    for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
+	docker_pid=$(find_docker_pid_by_taskId $i)
+	echo "marathon/mesos_task_id: $i maps to docker_pid: ${docker_pid}"
+	get_listeners $docker_pid
+    done
+}
+
 show_marathon_connections() {
     for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	get_connections_by_task_id $i true
@@ -337,23 +362,18 @@ drain_docker() {
 
  
 drain(){
-    if [ 0 -ne $(lock_host "DRAIN") ];then
+    lock_host "DRAIN" 
+    if [ $? -ne 0 ];then
 	state=$(host_state)
 	error "Can't get local host lock.  state: $state"
     fi
-    lock_host "DRAIN"
-    status=$?
-    if [ $status -eq 0 ]; then
-	break
-    else
-	state=$(host_state)
-	error "Unknown state.  Aborting"
-    fi
-
+    on_exit 'unlock_host "DRAIN"'
     log "$MACHINE-ID got drain lock"
-
+    # we already have mesos/marathon/docker data
     systemctl stop ${MESOS_UNIT}
-
+    # block marathon health checks with iptables
+    
+    
     # update docker inspect just in case the lock took a while to get
     DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
     drain_tcp
@@ -399,6 +419,9 @@ case "$1" in
     marathon_connections)
 	show_marathon_connections
 	;;
+    marathon_docker_pid_listeners)
+	show_marathon_docker_pid_listeners
+	;;
     host_ports)
 	host_ports
 	;;
@@ -412,8 +435,7 @@ case "$1" in
 	drain_docker
 	;;
     drain)
-	drain_tcp
-	drain_docker
+	drain
 	;;
     lock_host)
 	log "host state(BEFORE lock): $(host_state)"
@@ -505,7 +527,7 @@ case "$1" in
     
     
     *)
-        echo <<EOF 
+        cat <<EOF 
 Usage: drain {marathon_jobs|marathon_docker_ids|marathon_docker_pids|marathon_docker_connections|host_ports|just_ports|drain_tcp|drain_docker|drain|[un]lock_host|[un]lock_drain|[un]lock_reboot|[un]lock_booster|[host|drain|booster|reboot]_state,am_[drain,booster,reboot]_holder}
 Ethos assumptions:  All endpoints are in etcd and that all nodes have access to etcd.
 
@@ -516,6 +538,7 @@ marathon_docker_ids -- terse list of docker instance ids
 marathon_docker_pids -- list of pids 
 marathon_connections -- show all ESTABLISHED connection for this host related to marathon tasks.  Both 'host' and 'bridged'
 marathon_docker_jobs - takes the output of marathon_jobs and search docker_inspect in a xref into the .Config.Env for the task id.  Mesos sets the task id into the docker instances it starts.
+marathon_docker_pid_listeners - show the listeners for each docker pid.  Used to block marathon with iptables
 drain_tcp - stops the mesos slave and waits for all the ports coming from host_ports in an ESTABLISHED state to drop to zero.
 drain_docker - takes 
 drain   - locks host-lock 

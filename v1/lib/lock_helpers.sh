@@ -23,7 +23,7 @@ CLUSTERWIDE_LOCKS="${BOOSTER_LOCK} ${UPDATE_DRAIN_LOCK} ${REBOOT_LOCK}"
 #
 #
 log(){
-    echo "[$(date +%s)] $*"
+    echo "[$(date +%s)][$0] $*"
 }
 lock_booster(){
     docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} lock $MACHINEID
@@ -181,4 +181,18 @@ am_reboot_holder(){
 am_booster_holder(){
     am_cluster_lock_holder ${BOOSTER_LOCK} ${NODE_ROLE}
 }
+
+# allow multiple traps to be set
+#
+
+on_exit_acc () {
+    local next="$1"
+        eval "on_exit () {
+        local oldcmd='$(echo "$next" | sed -e s/\'/\'\\\\\'\'/g)'
+        local newcmd=\"\$oldcmd; \$1\"
+        trap -- \"\$newcmd\" 0
+        on_exit_acc \"\$newcmd\"
+    }"
+}
+on_exit_acc true
 
