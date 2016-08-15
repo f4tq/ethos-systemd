@@ -179,14 +179,12 @@ get_fw_rules(){
 	    #
 	    #      this                                    V is .[] with all
 	    #
-	    find_docker_stanza_by_taskId $taskId | jq -r ' . | .NetworkSettings.Ports as $in |
-            $in | keys[] |
-            if ( $in[.] | length) > 0 then
-                ($in[.][]| [ "iptables -A SKOPOS -i eth0 -p tcp --syn -dport "]+[( .HostPort | tostring)]+ ( if ( .HostIp | contains("0.0.0.0") ) then [""] else ([" -d "]+ [ .HostIp ] +["/32"]) end )+ [" -j REJECT "] | flatten|join(" "))
-            else
-                ""
-            end '
-			;;
+            find_docker_stanza_by_taskId $taskId | jq -r ' . | .NetworkSettings as $in | 
+             $in.Ports|keys[] |  
+             if ( $in.Ports[.] | length) > 0 then 
+                 [ "iptables -A SKOPOS -p ", (. | split("/") | last)," --dport ",(. | split("/") | first),"-d",$in.Networks.bridge.IPAddress, "-j REJECT "]|join(" ")  
+             else ""  end'
+	    ;;
 	host)
 	    pid=$(find_docker_pid_by_taskId $taskId)
 	    for hp in $(listening_tcp $pid |awk '{print $4}'); do
@@ -239,9 +237,9 @@ get_connections_by_task_id(){
     case "$mode" in
 	bridge)
 	    if $verbose; then
-		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_bridge.sh -E
+		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E
 	    else
-		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_bridge.sh -E | wc -l
+		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l
 	    fi
 	    
 	    ;;
@@ -344,6 +342,7 @@ just_ports() {
     marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| reduce .[] as $foo ([] ; . + [($foo| split(":")|last)])| join("|:") |  if ( . | length ) > 0 then  ":" + . else . end'
 }
 drain_tcp(){
+    
     # stop the slave
     TIMEOUT=$(( $SECONDS + 900 )) 
     while :; do
@@ -422,7 +421,12 @@ drain(){
     # we already have mesos/marathon/docker data
     systemctl stop ${MESOS_UNIT}
     # block marathon health checks with iptables
-    
+    if [ 0 -eq $(sudo iptables -nL -v | grep -c 'Chain SKOPOS') ]; then
+	iptables -t filter -N SKOPOS
+    fi
+    # generate and run the rules
+    generate_marathon_fw_rules | xargs -n 1
+    on_exit "iptables -F SKOPOS"
     
     # update docker inspect just in case the lock took a while to get
     DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
