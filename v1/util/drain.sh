@@ -182,7 +182,7 @@ get_fw_rules(){
 	                find_docker_stanza_by_taskId $taskId | jq -r ' . | .NetworkSettings.Ports as $in |
             $in | keys[] |
             if ( $in[.] | length) > 0 then
-                ($in[.][]| [ "iptables -A INPUT -i eth0 -p tcp --syn -dport "]+[( .HostPort | tostring)]+[" -d "]+ [ .HostIp ] +[" -j DROP "] | flatten|join(" "))
+                ($in[.][]| [ "iptables -A SKOPOS -i eth0 -p tcp --syn -dport "]+[( .HostPort | tostring)]+ ( if ( .HostIp | contains("0.0.0.0") ) then [""] else ([" -d "]+ [ .HostIp ] +["/32"]) end )+ [" -j REJECT "] | flatten|join(" "))
             else
                 ""
             end '
@@ -196,8 +196,11 @@ get_fw_rules(){
 		case $host in
 		    '::'|'0.0.0.0'|'*')
 			host='*'
+			echo "iptables -A SKOPOS -i eth0 -p tcp --syn -dport $port -j REJECT"
+			;;
+		    *)
+			log "WARNING: don't know how to generate fw rule for $host"
 		esac
-		echo "$host;$port"
 	    done
 	    ;;
     esac
