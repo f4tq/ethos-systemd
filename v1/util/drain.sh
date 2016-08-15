@@ -179,7 +179,7 @@ get_fw_rules(){
 	    #
 	    #      this                                    V is .[] with all
 	    #
-	                find_docker_stanza_by_taskId $taskId | jq -r ' . | .NetworkSettings.Ports as $in |
+	    find_docker_stanza_by_taskId $taskId | jq -r ' . | .NetworkSettings.Ports as $in |
             $in | keys[] |
             if ( $in[.] | length) > 0 then
                 ($in[.][]| [ "iptables -A SKOPOS -i eth0 -p tcp --syn -dport "]+[( .HostPort | tostring)]+ ( if ( .HostIp | contains("0.0.0.0") ) then [""] else ([" -d "]+ [ .HostIp ] +["/32"]) end )+ [" -j REJECT "] | flatten|join(" "))
@@ -188,6 +188,7 @@ get_fw_rules(){
             end '
 			;;
 	host)
+	    pid=$(find_docker_pid_by_taskId $taskId)
 	    for hp in $(listening_tcp $pid |awk '{print $4}'); do
 		port=$(echo $hp | grep -o '[^:]*$')
 		host=$(echo $hp | sed "s/:$port\$//")
@@ -334,7 +335,7 @@ show_marathon_connections() {
 
 host_ports() {
     # pre-made for egrep
-    marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| join[("|")'
+    marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| join("|")'
 }
 
 just_ports() {
