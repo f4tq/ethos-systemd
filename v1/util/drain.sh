@@ -141,6 +141,14 @@ find_docker_networkmode_by_taskId(){
     fi
     docker_inspect | jq -r --arg taskId "$taskId" '.[] | select(.Config.Env[] | contains($taskId ))| .HostConfig.NetworkMode'
 }
+# output the whole stanza given the mesos taskId
+find_docker_stanza_by_taskId(){
+    taskId="$1"
+    if [ -z "$taskId" ]; then
+	error "Missing taskId in call to find_docker_id_by_taskId"
+    fi
+    docker_inspect | jq -r --arg taskId "$taskId" '.[] | . as $d | select(.Config.Env[] | contains($taskId ))| $d'
+}
 
 #
 # Produces process tree given docker pid taken from docker inspect
@@ -161,19 +169,55 @@ listening_tcp(){
 listening_patterns(){
     listening_tcp $1 | awk '{print $4}'| sed 's/0.0.0.0/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/'| xargs -n 1 -I XX echo " -e XX"
 }
-get_listeners(){
-    pid=$1
-    for hp in $(listening_tcp $pid |awk '{print $4}'); do
-	port=$(echo $hp | grep -o '[^:]*$')
-	host=$(echo $hp | sed "s/:$port\$//")
-#	echo "host: $host"
-	#	echo "port: $port"
-	case $host in
-	    '::'|'0.0.0.0'|'*')
-		host='*'
-	esac
-	echo "$host;$port"
-    done
+# output the whole stanza given the mesos taskId
+
+get_fw_rules(){
+    taskId=$1
+    mode=$(find_docker_networkmode_by_taskId $taskId)
+    case "$mode" in
+	bridge)
+	    #
+	    #      this                                    V is .[] with all
+	    #
+	                find_docker_stanza_by_taskId $taskId | jq -r ' . | .NetworkSettings.Ports as $in |
+            $in | keys[] |
+            if ( $in[.] | length) > 0 then
+                ($in[.][]| [ "iptables -A INPUT -i eth0 -p tcp --syn -dport "]+[( .HostPort | tostring)]+[" -d "]+ [ .HostIp ] +[" -j DROP "] | flatten|join(" "))
+            else
+                ""
+            end '
+			;;
+	host)
+	    for hp in $(listening_tcp $pid |awk '{print $4}'); do
+		port=$(echo $hp | grep -o '[^:]*$')
+		host=$(echo $hp | sed "s/:$port\$//")
+		#       echo "host: $host"
+		#       echo "port: $port"
+		case $host in
+		    '::'|'0.0.0.0'|'*')
+			host='*'
+		esac
+		echo "$host;$port"
+	    done
+	    ;;
+    esac
+}
+
+# docker inspect $(docker ps -q) |
+#  jq -r --arg taskId "mesos-331329da-0d1d-480b-beb3-408601afe0fc-S4.8c8b52a3-8be5-4163-b4f4-a1eb058b2b5a" '.[] | . as $d | select(.Config.Env[] | contains($taskId ))| $d' |
+#   jq -r '.| .NetworkSettings.Ports as $in | $in | keys[] | $in[.][]| [ "iptables -A INPUT -i eth0 -p tcp --syn -dport "]+[( .HostPort | tostring)]+[" -d "]+ [ .HostIp ] +[" -j DROP "] | flatten|join(" ")'
+
+# docker inspect   69a990abfafd | jq -r '.[]| .NetworkSettings.Ports as $in | $in | keys[] | $in[.][]| [ "iptables -A INPUT -i eth0 -p tcp --syn -dport "]+[( .HostPort | tostring)]+[" -d "]+ [ .HostIp ] +[" -j DROP "] | flatten|join(" ")'
+get_bridge_ip_rules(){
+
+            docker_inspect  | jq -r ' .[] |
+            .NetworkSettings.Ports as $in |
+            $in | keys[] |
+            if ( $in[.] | length) > 0 then
+                ($in[.][]| [ "iptables -A INPUT -i eth0 -p tcp --syn -dport "]+[( .HostPort | tostring)]+[" -d "]+ [ .HostIp ] +[" -j DROP "] | flatten|join(" "))
+            else
+                ""
+            end '
 }
 
 # ss -t -o state established
@@ -269,11 +313,11 @@ show_marathon_docker_pids() {
 	echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_pid}"
     done
 }
-show_marathon_docker_pid_listeners() {
+generate_marathon_fw_rules() {
     for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
-	docker_pid=$(find_docker_pid_by_taskId $i)
-	echo "marathon/mesos_task_id: $i maps to docker_pid: ${docker_pid}"
-	get_listeners $docker_pid
+	docker_id=$(find_docker_id_by_taskId $i)
+	echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
+	get_fw_rules $i
     done
 }
 
@@ -419,8 +463,9 @@ case "$1" in
     marathon_connections)
 	show_marathon_connections
 	;;
-    marathon_docker_pid_listeners)
-	show_marathon_docker_pid_listeners
+    generate_marathon_fw_rules)
+	generate_marathon_fw_rules
+
 	;;
     host_ports)
 	host_ports
@@ -538,7 +583,7 @@ marathon_docker_ids -- terse list of docker instance ids
 marathon_docker_pids -- list of pids 
 marathon_connections -- show all ESTABLISHED connection for this host related to marathon tasks.  Both 'host' and 'bridged'
 marathon_docker_jobs - takes the output of marathon_jobs and search docker_inspect in a xref into the .Config.Env for the task id.  Mesos sets the task id into the docker instances it starts.
-marathon_docker_pid_listeners - show the listeners for each docker pid.  Used to block marathon with iptables
+generate_marathon_fw_rules - show the listeners for each docker pid.  Used to block marathon with iptables
 drain_tcp - stops the mesos slave and waits for all the ports coming from host_ports in an ESTABLISHED state to drop to zero.
 drain_docker - takes 
 drain   - locks host-lock 
