@@ -21,7 +21,7 @@ if [ -f /etc/profile.d/etcdctl.sh ]; then
 fi
 
 source $LOCALPATH/../lib/lock_helpers.sh
-
+verbose=false
 STOP_TIMEOUT=20
 
 # Get out local ip
@@ -319,8 +319,10 @@ show_marathon_docker_pids() {
 generate_marathon_fw_rules() {
     for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	docker_id=$(find_docker_id_by_taskId $i)
-	echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
-	get_fw_rules $i
+	if $verbose; then
+	    echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
+	fi
+	get_fw_rules $i | grep -v -E '^\s*$'
     done
 }
 
