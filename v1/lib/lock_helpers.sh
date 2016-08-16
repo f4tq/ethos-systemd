@@ -38,6 +38,12 @@ assert_root(){
 	die "You must be root to execute this script"
     fi
 }
+finish_ok(){
+    if [ ! -z "$1" ]; then
+	log $*
+    fi
+    exit 0
+}
 
 lock_booster(){
     docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} lock $MACHINEID

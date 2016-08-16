@@ -22,6 +22,9 @@ fi
 source $LOCALPATH/../lib/lock_helpers.sh
 
 assert_root
+tmpdir=${TMPDIR-/tmp}/skopos-$RANDOM-$$
+mkdir -p $tmpdir
+on_exit 'rmdir "$tmpdir" 2>/dev/null'
 
 verbose=false
 STOP_TIMEOUT=20
@@ -42,9 +45,6 @@ fi
 #
 #  A temp directory for cached output
 # 
-tmpdir=${TMPDIR-/tmp}/skopos-$RANDOM-$$
-mkdir -p $tmpdir
-on_exit 'rmdir "$tmpdir" 2>/dev/null'
 
 # Cached files
 DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
@@ -261,9 +261,9 @@ get_connections_by_task_id(){
 # Make sure curl worked to host and that it got back something
 #
 update_slave_info() {
-    curl -SsfLk http://${LOCAL_IP}:5051/state > /tmp/fake
-    if [ $? -eq 0 -a -s /tmp/fake ]; then
-	mv /tmp/fake ${SLAVE_CACHE}
+    curl -SsfLk http://${LOCAL_IP}:5051/state > $tmpdir/mesos-slave-$$.json
+    if [ $? -eq 0 -a -s $tmpdir/mesos-slave$$.json ]; then
+	mv $tmpdir/mesos-slave$$.json ${SLAVE_CACHE}
 	cat ${SLAVE_CACHE}
     else
 	echo
@@ -487,15 +487,18 @@ if [ ! -z "$1" ];then
     if [ -z "$(update_docker_inspect)" ]; then
 	# TODO: error for now, but actually edge case.
 	# Nothing is running so just drain
-	error "No docker instances"
+	finish_ok "No docker instances"
     fi
     if [ -z "$(  update_slave_info )" ] ;then
-	error "No slave info. Is slave running?"
+	finish_ok "No slave info. Is mesos-slave running?"
     fi
     # Getting the slave Id.
     SLAVE_ID=$( slave_info | jq -r .id)
     if [ -z "${SLAVE_ID}" ]; then
-	error "No slave id found.  Is the mesos-slave running?"
+	#
+	# it is weird to call this ok as there is always a slave it if the slave is running.
+	# 
+        finish_ok "No slave id found.  Is the mesos-slave running?"
     fi
     SLAVE_HOST=$( slave_info | jq -r .hostname)
     
