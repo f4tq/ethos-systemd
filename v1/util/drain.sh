@@ -11,8 +11,7 @@ source /etc/environment
 2> echo "-------Starting skopos drain-------"
 
 if [ "${NODE_ROLE}" != "worker" ]; then
-    >&2 echo "No drain for worker role ${NODE_ROLE}"
-        
+    >&2 echo "No drain for non-worker role ${NODE_ROLE}"
     exit 0
 fi
 
@@ -544,149 +543,33 @@ case "$1" in
     drain)
 	drain
 	;;
-    lock_host)
-	log "BEFORE host lock: host state: '$(host_state)'"
-	token="DRAIN"
-	if [ ! -z "$2" ]; then
-	    token="$2"
-	fi
-	lock_host "$token"
-	if [ $? -ne 0 ]; then
-	    log "WARNING: host lock failed.  You must use the host state value"
-	fi
-	log "AFTER host lock: host state: '$(host_state)'"
-	;;
-    unlock_host)
-	log "BEFORE host unlock: host state: '$(host_state)'"
-	token="DRAIN"
-	if [ ! -z "$2" ]; then
-	    token="$2"
-	fi
-	unlock_host "$token"
-	if [ $? -ne 0 ]; then
-	    log "WARNING: host unlock failed.  You must use the `host_state` value"
-	fi
-	log "AFTER host unlock: host state: '$(host_state)'"
-	;;
-    lock_drain)
-	log "drain lock BEFORE: '$(drain_state)'"
-	lock_drain
-	if [ $? -ne 0 ]; then
-	    log "WARNING: drain lock failed"
-	fi
-	log "drain lock AFTER: '$(drain_state)'"
-	;;
-    unlock_drain)
-	log "drain_lock BEFORE: '$(drain_state)'"
-	unlock_drain
-	if [ $? -ne 0 ]; then
-	    log "WARNING: drain unlock failed"
-	fi
-	log "drain_lock AFTER : '$(drain_state)'"
-	;;
-    lock_reboot)
-	log "reboot_lock BEFORE : '$(reboot_state)'"
-	lock_reboot
-	if [ $? -ne 0 ]; then
-	    log "WARNING: reboot lock failed"
-	fi
-	log "reboot lock AFTER: '$(reboot_state)'"
-	;;
-    unlock_reboot)
-	log "reboot unlock BEFORE: '$(reboot_state)'"
-	unlock_reboot
-	if [ $? -ne 0 ]; then
-	    log "WARNING: reboot unlock failed"
-	fi
-	log "reboot unlock AFTER: '$(reboot_state)'"
-	;;
-    lock_booster)
-	log "booster lock BEFORE: '$(booster_state)'"
-	lock_booster
-	if [ $? -ne 0 ]; then
-	    log "WARNING: booster lock failed"
-	fi
-	log "booster lock AFTER: '$(booster_state)'"
-	;;
-    unlock_booster)
-	log "booster unlock BEFORE: '$(booster_state)'"
-	unlock_booster
-	if [ $? -ne 0 ]; then
-	    log "WARNING: booster unlock failed"
-	fi
-	log "booster unlock AFTER: '$(booster_state)'"
-	;;
-
-    am_drain_holder)
-	am_drain_holder
-	;;
-    am_reboot_holder)
-	am_booster_holder
-	;;
-    am_booster_holder)
-	am_booster_holder
-	;;
-
-    host_state)
-	host_state
-	;;
-    drain_state)
-	drain_state
-	;;
-    booster_state)
-	booster_state
-	;;
-    reboot_state)
-	reboot_state
-	;;
-    
     
     *)
         cat <<EOF 
-Usage: drain {marathon_jobs|marathon_docker_ids|marathon_docker_pids|marathon_docker_connections|host_ports|just_ports|drain_tcp|drain_docker|drain|[un]lock_host|[un]lock_drain|[un]lock_reboot|[un]lock_booster|[host|drain|booster|reboot]_state,am_[drain,booster,reboot]_holder}
-Ethos assumptions:  All endpoints are in etcd and that all nodes have access to etcd.
+Usage: drain {marathon_jobs|marathon_docker_ids|marathon_docker_pids|marathon_docker_connections|host_ports|just_ports|drain_tcp|drain_docker|drain}
+     Drains a mesos & marathon managed node where the tasks are docker instances in bridged or host network mode
 
-host_ports - outputs the pipe separated list ip:ports for this listening on this slave
-just_ports - is just the ports separated by pipes for grep
-marathon_jobs - outputs json with the mesos_task_id
-marathon_docker_ids -- terse list of docker instance ids
-marathon_docker_pids -- list of pids 
-marathon_connections -- show all ESTABLISHED connection for this host related to marathon tasks.  Both 'host' and 'bridged'
-marathon_docker_jobs - takes the output of marathon_jobs and search docker_inspect in a xref into the .Config.Env for the task id.  Mesos sets the task id into the docker instances it starts.
-generate_marathon_fw_rules - show the listeners for each docker pid.  Used to block marathon with iptables
-drain_tcp - stops the mesos slave and waits for all the ports coming from host_ports in an ESTABLISHED state to drop to zero.
-drain_docker - takes 
-drain   - locks host-lock 
-            - if it's not already locked.  
-        - locks the drain cluster-wide lock
-        - grabs mesos-slave,docker, and marathon data
-        - stops mesos
-        - call drain_tcp which works with host and bridge network types
-        - calls drain_docker which calls docker stop, waits a period of time to ensure all instances stop, then calls docker kill
-        - unlocks cluster-wide lock
-        - unlocks host lock
-You can also manipulate locks which can be useful it a lock is in an undesirable state i.e. machine crashed while holding a lock 
+     Ethos assumptions:  All endpoints are in etcd and that all nodes have access to etcd.
 
--- host lock -- 
-Each host has it own locks.  The locks in etcd are named after the machine id (cat /etc/machine-id).  The values held in the lock should be the task the host is locked for.  You unlock it using the same host state value.  This value is returned with all *lock* calls in this cli
-
-lock_host  <value>  default: DRAIN  Other likely values: REBOOT, BOOSTER    
-unlock_host <value>  default: DRAIN
-host_state -- returns the current value of the host lock i.e. DRAIN.
-
--- cluster wide locks ---
-Cluster wide lock values are machine-ids.  You don't provide a value for these directly.
-
-lock_drain  -- limits the number of simulataneous drains in the cluster.  This can be different for each controlled by tier
-unlock_drain
-lock_reboot -- limits the number of simulataneous reboots in the cluster.  This can be different for each controlled by tier
-unlock_reboot
-lock_booster -- limits the number of simulataneous booster locks in the cluster.  This can be different for each controlled by tier
-unlock_booster
-
-drain_state  -- returns the list of machine-ids currently in possesion of the lock.  It can be empty or multiple
-booster_state
-reboot_state 
+     host_ports - outputs the pipe separated list ip:ports for this listening on this slave
+     just_ports - is just the ports separated by pipes for grep
+     marathon_jobs - outputs json with the mesos_task_id
+     marathon_docker_ids -- terse list of docker instance ids
+     marathon_docker_pids -- list of pids 
+     marathon_connections -- show all ESTABLISHED connection for this host related to marathon tasks.  Both 'host' and 'bridged'
+     marathon_docker_jobs - takes the output of marathon_jobs and search docker_inspect in a xref into the .Config.Env for the task id.  Mesos sets the task id into the docker instances it starts.
+     generate_marathon_fw_rules - show the listeners for each docker pid.  Used to block marathon with iptables
+     drain_tcp - stops the mesos slave and waits for all the ports coming from host_ports in an ESTABLISHED state to drop to zero.
+     drain_docker - takes 
+     drain   - locks host-lock 
+		 - if it's not already locked.  
+	     - locks the drain cluster-wide lock
+	     - grabs mesos-slave,docker, and marathon data
+	     - stops mesos
+	     - call drain_tcp which works with host and bridge network types
+	     - calls drain_docker which calls docker stop, waits a period of time to ensure all instances stop, then calls docker kill
+	     - unlocks cluster-wide lock
+	     - unlocks host lock
 
 
 EOF

@@ -68,9 +68,9 @@ if $(need_reboot) ; then
 	   #on_exit 'unlock_reboot'
 	   while : ; do 
 	       # we hold the tier lock for reboot
-	       $LOCALPATH/drain.sh drain "REBOOT"
+	       value=$($LOCALPATH/drain.sh drain "REBOOT")
 	       status=$?
-	       if [ $? -eq 0 ]; then
+	       if [ $status -eq 0 -o  ( 0 -lt $(echo "$value"| grep -c "No docker instances") )  ]; then
 		   log "drain succeeded. rebooting"
 		   touch /var/lib/skopos/rebooting
 		   
