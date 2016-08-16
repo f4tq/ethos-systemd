@@ -85,7 +85,6 @@ update_marathon_jobs(){
         | .host as $host| .servicePorts as $outside | .ports as $inside | .appId as $appId | .id as $mesos_id 
         | reduce range(0, $inside |length) as $i ( .mapping;  . + [($host+":"+($inside[$i] | tostring))] )| { mesos_task_id: $mesos_id, host: $host, slaveId: $slaveId, appId: $appId, mappings: .} 
         ]'
-
 }
 
 #
@@ -190,8 +189,7 @@ get_fw_rules(){
 	    for hp in $(listening_tcp $pid |awk '{print $4}'); do
 		port=$(echo $hp | grep -o '[^:]*$')
 		host=$(echo $hp | sed "s/:$port\$//")
-		#       echo "host: $host"
-		#       echo "port: $port"
+
 		case $host in
 		    '::'|'0.0.0.0'|'*')
 			host='*'
@@ -205,27 +203,14 @@ get_fw_rules(){
     esac
 }
 
-# docker inspect $(docker ps -q) |
-#  jq -r --arg taskId "mesos-331329da-0d1d-480b-beb3-408601afe0fc-S4.8c8b52a3-8be5-4163-b4f4-a1eb058b2b5a" '.[] | . as $d | select(.Config.Env[] | contains($taskId ))| $d' |
-#   jq -r '.| .NetworkSettings.Ports as $in | $in | keys[] | $in[.][]| [ "iptables -A INPUT -i eth0 -p tcp --syn -dport "]+[( .HostPort | tostring)]+[" -d "]+ [ .HostIp ] +[" -j DROP "] | flatten|join(" ")'
-
-# docker inspect   69a990abfafd | jq -r '.[]| .NetworkSettings.Ports as $in | $in | keys[] | $in[.][]| [ "iptables -A INPUT -i eth0 -p tcp --syn -dport "]+[( .HostPort | tostring)]+[" -d "]+ [ .HostIp ] +[" -j DROP "] | flatten|join(" ")'
-get_bridge_ip_rules(){
-
-            docker_inspect  | jq -r ' .[] |
-            .NetworkSettings.Ports as $in |
-            $in | keys[] |
-            if ( $in[.] | length) > 0 then
-                ($in[.][]| [ "iptables -A INPUT -i eth0 -p tcp --syn -dport "]+[( .HostPort | tostring)]+[" -d "]+ [ .HostIp ] +[" -j DROP "] | flatten|join(" "))
-            else
-                ""
-            end '
-}
-
-# ss -t -o state established
 #
-
-	    
+# given a mesos taskId
+#  - get the underlying docker info then 
+#  - determine whether the docker instance is in bridged or host networking mode
+#  - get all the connections associated with it
+#
+# If verbose is passed, the entire list is returned otherwise just a count is returned
+#
 get_connections_by_task_id(){
     taskId="$1"
     verbose=false
@@ -241,7 +226,6 @@ get_connections_by_task_id(){
 	    else
 		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l
 	    fi
-	    
 	    ;;
 	host)
 	    # the docker process can and will have *Multiple* child process
@@ -252,10 +236,11 @@ get_connections_by_task_id(){
 	    # 4. next, convert the 0.0.0.0:xxx into a regexp that will match any interface listening on the ports
 	    #
 	    # 
-	    listening_tcp=$(sudo netstat -tnlp | grep $(host_mode_listening ${task_pid}| xargs -n 1 -IXX echo " -e XX") | awk '{print $4}'| sed 's/0.0.0.0/[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/')
 	    # Now we have a list of listeners and looks for established connections
 	    # tcp4 addresses for now
 	    #      	  Add | awk '{ print substr($0, index($0,$3)) }' to chop off leading recvQ/sendQ
+	    #
+	    # verbose mode is set for the cli when the user invokes $0 marathon_connections.  otherwise, a count is used with drain
 	    #
 	    CNT="-c"
 	    if $verbose ;  then
@@ -285,7 +270,9 @@ update_slave_info() {
 	echo
     fi
 }
-
+#
+# Grab all the local data from the mesos-slave api
+#
 slave_info(){
     if [ ! -f "${SLAVE_CACHE}" -o ! -s "${SLAVE_CACHE}" ]; then
 	update_slave_info
@@ -294,27 +281,46 @@ slave_info(){
 	cat ${SLAVE_CACHE}
     fi
 }
-
+#
+# Cross reference the mesos slave info to docker instances
+#
 find_all_mesos_docker_instances(){
     # Mesos creates docker instances for potentially many frameworks.  Marathon is just one
     docker_inspect | jq '[.[] | select( .Name | startswith("/mesos-")) | { name: .Name, id: .Id}]'
 }
 
+#
+# Get all the marathon jobs.  snapshot
+#
 marathon_jobs() {
     echo "${THIS_SLAVES_MARATHON_JOBS}"
 }
+#
+# Given the mesos slave id
+# Return all the docker ids for the given marathon tasks for
+#
 show_marathon_docker_ids() {
     for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	docker_id=$(find_docker_id_by_taskId $i)
 	echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
     done
 }
+#
+# Given the mesos slave id,
+# Get the associated marathon tasks and cross-reference it to docker pids
+#  i.e. {{.State.Pid}}
+#
 show_marathon_docker_pids() {
     for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	docker_pid=$(find_docker_pid_by_taskId $i)
 	echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_pid}"
     done
 }
+#
+# Given the marathon task list for this slave,
+# Cross-reference to the docker instances
+# Then make fw rules to block SYN
+#
 generate_marathon_fw_rules() {
     for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	docker_id=$(find_docker_id_by_taskId $i)
@@ -324,25 +330,47 @@ generate_marathon_fw_rules() {
 	get_fw_rules $i | grep -v -E '^\s*$'
     done
 }
-
+#
+# Given a mesos task id
+# Get the marathon task xref to docker xref to /proc/$docker_pid/net/tcp6
+#
+# Return the full list of connections
 show_marathon_connections() {
     for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	get_connections_by_task_id $i true
     done
 }
-
+#
+# Get a list of well know host:ports for all the tasks associated with this host from marathon's perspective
+#
 host_ports() {
     # pre-made for egrep
     marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| join("|")'
 }
-
+#
+# Get a list of well know ports for all the tasks associated with this host from marathon's perspective
+#
 just_ports() {
     # egrep ready.
     # just ports.  Put out a leading ':' after the join
     marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| reduce .[] as $foo ([] ; . + [($foo| split(":")|last)])| join("|:") |  if ( . | length ) > 0 then  ":" + . else . end'
 }
+#
+# drain all the connections associated with this host
+#
+# This places firewall rules into iptables -t filter -A SKOPOS
+# If the SKOPOS chain doesn't exist, it is made
+# The SKOPOS chain is flushed on exit
+#
 drain_tcp(){
-    
+    # block marathon health checks with iptables
+    if [ 0 -eq $(sudo iptables -nL -v | grep -c 'Chain SKOPOS') ]; then
+	iptables -t filter -N SKOPOS
+    fi
+    # generate and run the rules
+    generate_marathon_fw_rules | xargs -n 1 -I XX eval XX
+    on_exit "iptables -F SKOPOS"
+
     # stop the slave
     TIMEOUT=$(( $SECONDS + 900 )) 
     while :; do
@@ -362,10 +390,12 @@ drain_tcp(){
 	log "drain_tcp| Waiting for $cnt more connections $SECONDS->$TIMEOUT"
         sleep 1
     done
-    log
+    log "done draining"
 }
 
-# drain_docker cycles through docker instances started by mesos
+#
+# Get all the docker ids assoc with this host
+#
 
 marathon_docker_ids(){
     for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
@@ -379,7 +409,16 @@ marat(){
   done
   echo $ID
 }
-
+#
+# drain_docker
+#
+# - call docker stop on all processes marathon related docker instances
+# - wait for a period of time
+# - check if they all stop
+# - keep waiting 900 seconds (15 mins)
+# - if still active after 15 mins, call docker kill
+#
+#
 drain_docker() {
     
     # stop all the docker instances
@@ -409,6 +448,15 @@ drain_docker() {
     done
 }
 
+#
+# drain
+#  
+#   - grab the host lock using "DRAIN" as a value
+#   - register an on exit unlock_host once acquired
+#   - stop mesos-slave
+#   - call drain_tcp
+#   - call drain_docker
+
  
 drain(){
     lock_host "DRAIN" 
@@ -420,13 +468,6 @@ drain(){
     log "$MACHINE-ID got drain lock"
     # we already have mesos/marathon/docker data
     systemctl stop ${MESOS_UNIT}
-    # block marathon health checks with iptables
-    if [ 0 -eq $(sudo iptables -nL -v | grep -c 'Chain SKOPOS') ]; then
-	iptables -t filter -N SKOPOS
-    fi
-    # generate and run the rules
-    generate_marathon_fw_rules | xargs -n 1
-    on_exit "iptables -F SKOPOS"
     
     # update docker inspect just in case the lock took a while to get
     DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
