@@ -366,6 +366,8 @@ drain_tcp(){
     # block marathon health checks with iptables
     if [ 0 -eq $(sudo iptables -nL -v | grep -c 'Chain SKOPOS') ]; then
 	iptables -t filter -N SKOPOS
+	# we need to go before DOCKER
+	iptables -t filter -I FORWARD -j SKOPOS
     fi
     # generate and run the rules
     generate_marathon_fw_rules | xargs -n 1 -I XX eval XX
