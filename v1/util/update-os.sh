@@ -29,7 +29,7 @@ need_reboot(){
 	2> echo "mock_reboot"
 	/bin/true
     else
-	if [ 0 -ne $(update_engine_client -update 2>&1 |grep -c NEED_REBOOT) ] ;then
+	if [ 0 -lt $(update_engine_client -update 2>&1 |grep -c NEED_REBOOT) ] ;then
 	    echo "Detect real reboot"
 	    /bin/true
 	else
@@ -44,6 +44,17 @@ if [ -e /var/lib/skopos/rebooting ]; then
     if [ $? -eq 0 ];then
 	rm -f /var/lib/skopos/rebooting
     fi
+    if [ "REBOOT" == "$(host_state)" ] ; then
+	# This shouldn't happen but if the host lock reads REBOOT then something odd
+	# happened.  So unlock and make sure there are no rules left in the iptables SKOPOS chain
+	#
+        if [ 0 -lt $(iptables -t filter -nL -v | grep -c 'Chain SKOPOS') ]; then
+	    
+	    iptables -t filter -F SKOPOS
+	fi
+	unlock_host "REBOOT"
+    fi
+    
 fi
 	
 timeout=10
@@ -57,7 +68,7 @@ if $(need_reboot) ; then
 	   #on_exit 'unlock_reboot'
 	   while : ; do 
 	       # we hold the tier lock for reboot
-	       $LOCALPATH/drain.sh drain
+	       $LOCALPATH/drain.sh drain "REBOOT"
 	       status=$?
 	       if [ $? -eq 0 ]; then
 		   log "drain succeeded. rebooting"

@@ -458,16 +458,20 @@ drain_docker() {
 #   - stop mesos-slave
 #   - call drain_tcp
 #   - call drain_docker
-
+#   - unlock
  
 drain(){
-    lock_host "DRAIN" 
+    token="DRAIN"
+    if [ ! -z "$1" ];then
+	token="$1"
+    fi
+    lock_host $token
     if [ $? -ne 0 ];then
 	state=$(host_state)
 	error "Can't get local host lock.  state: $state"
     fi
-    on_exit 'unlock_host "DRAIN"'
-    log "$MACHINE-ID got drain lock"
+    on_exit 'unlock_host "$token"'
+    log "$MACHINE-ID got drain lock with lock token \"$token\""
     # we already have mesos/marathon/docker data
     systemctl stop ${MESOS_UNIT}
     
@@ -475,7 +479,7 @@ drain(){
     DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
     drain_tcp
     drain_docker
-    unlock_host "DRAIN"
+    unlock_host "$token"
 }
 
 if [ ! -z "$1" ];then
@@ -536,68 +540,76 @@ case "$1" in
 	drain
 	;;
     lock_host)
-	log "host state(BEFORE lock): $(host_state)"
-	lock_host "DRAIN"
+	log "BEFORE host lock: host state: '$(host_state)'"
+	token="DRAIN"
+	if [ ! -z "$2" ]; then
+	    token="$2"
+	fi
+	lock_host "$token"
 	if [ $? -ne 0 ]; then
 	    log "WARNING: host lock failed.  You must use the host state value"
 	fi
-	log "host state(AFTER lock): $(host_state)"
+	log "AFTER host lock: host state: '$(host_state)'"
 	;;
     unlock_host)
-	log "host state(BEFORE unlock): $(host_state)"
-	unlock_host "DRAIN"
-	if [ $? -ne 0 ]; then
-	    log "WARNING: host unlock failed.  You must use the host state value"
+	log "BEFORE host unlock: host state: '$(host_state)'"
+	token="DRAIN"
+	if [ ! -z "$2" ]; then
+	    token="$2"
 	fi
-	log "host state(AFTER unlock): $(host_state)"
+	unlock_host "$token"
+	if [ $? -ne 0 ]; then
+	    log "WARNING: host unlock failed.  You must use the `host_state` value"
+	fi
+	log "AFTER host unlock: host state: '$(host_state)'"
 	;;
     lock_drain)
-	log "drain lock state(BEFORE lock): $(drain_state)"
+	log "drain lock BEFORE: '$(drain_state)'"
 	lock_drain
 	if [ $? -ne 0 ]; then
 	    log "WARNING: drain lock failed"
 	fi
-	log "drain lock state: $(drain_state)"
+	log "drain lock AFTER: '$(drain_state)'"
 	;;
     unlock_drain)
-	log "drain locks(BEFORE): $(drain_state)"
+	log "drain_lock BEFORE: '$(drain_state)'"
 	unlock_drain
 	if [ $? -ne 0 ]; then
 	    log "WARNING: drain unlock failed"
 	fi
-	log "drain locks(AFTER): $(drain_state)"
+	log "drain_lock AFTER : '$(drain_state)'"
 	;;
     lock_reboot)
-	log "reboot lock state(BEFORE lock): $(reboot_state)"
+	log "reboot_lock BEFORE : '$(reboot_state)'"
 	lock_reboot
 	if [ $? -ne 0 ]; then
 	    log "WARNING: reboot lock failed"
 	fi
-	log "reboot lock state(AFTER): $(reboot_state)"
+	log "reboot lock AFTER: '$(reboot_state)'"
 	;;
     unlock_reboot)
-	log "reboot unlock(BEFORE): $(reboot_state)"
+	log "reboot unlock BEFORE: '$(reboot_state)'"
 	unlock_reboot
 	if [ $? -ne 0 ]; then
 	    log "WARNING: reboot unlock failed"
 	fi
-	log "reboot unlock(AFTER): $(reboot_state)"
+	log "reboot unlock AFTER: '$(reboot_state)'"
 	;;
     lock_booster)
-	log "booster lock state(BEFORE lock): $(booster_state)"
+	log "booster lock BEFORE: '$(booster_state)'"
 	lock_booster
 	if [ $? -ne 0 ]; then
 	    log "WARNING: booster lock failed"
 	fi
-	log "booster lock state(AFTER): $(booster_state)"
+	log "booster lock AFTER: '$(booster_state)'"
 	;;
     unlock_booster)
-	log "booster unlock(BEFORE): $(booster_state)"
+	log "booster unlock BEFORE: '$(booster_state)'"
 	unlock_booster
 	if [ $? -ne 0 ]; then
 	    log "WARNING: booster unlock failed"
 	fi
-	log "booster unlock(AFTER): $(booster_state)"
+	log "booster unlock AFTER: '$(booster_state)'"
 	;;
 
     am_drain_holder)
@@ -653,8 +665,8 @@ You can also manipulate locks which can be useful it a lock is in an undesirable
 -- host lock -- 
 Each host has it own locks.  The locks in etcd are named after the machine id (cat /etc/machine-id).  The values held in the lock should be the task the host is locked for.  You unlock it using the same host state value.  This value is returned with all *lock* calls in this cli
 
-lock_host  
-unlock_host
+lock_host  <value>  default: DRAIN  Other likely values: REBOOT, BOOSTER    
+unlock_host <value>  default: DRAIN
 host_state -- returns the current value of the host lock i.e. DRAIN.
 
 -- cluster wide locks ---
