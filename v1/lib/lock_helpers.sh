@@ -26,7 +26,7 @@ log(){
     echo "[$(date +%s)][$0] $*"
 }
 error() {
-    2> echo "[$(date +%s)][$0] $*"
+    >&2  echo "[$(date +%s)][$0] $*"
     exit -1
 }
 
@@ -119,12 +119,7 @@ unlock_host(){
 host_state(){
     etcdctl get ${SKOPOS_PERHOST_LOCKS}/$MACHINEID| jq -r --arg machineId $MACHINEID '.holders|(if length > 0 then (.| join(" ")) else "" end)'
 }
-lock_error(){
-    if [ ! -z "$1" ];then
-	2>echo $1
-    fi
-    exit -1
-}
+
 #
 # the semaphore value.  We need this to watch for changes.
 # There will be an update to etcdctl that fixes this but for now
@@ -132,7 +127,7 @@ lock_error(){
 # holders is an array
 cluster_lock_val(){
     if [ -z "$1" ]; then
-	lock_error "You must provide one of '${CLUSTERWIDE_LOCKS}'"
+	error "You must provide one of '${CLUSTERWIDE_LOCKS}'"
     fi
     topic=$1
     if [ ! -z "$2" ]; then tier=$2;  else tier=${NODE_ROLE} ; fi
@@ -142,11 +137,11 @@ cluster_lock_val(){
 
 am_cluster_lock_holder(){
     if [ -z "$1" ]; then
-	lock_error "You must provide one of '${CLUSTERWIDE_LOCKS}'"
+	error "You must provide one of '${CLUSTERWIDE_LOCKS}'"
     fi
     topic=$1
     if [  -z "$2" ]; then
-	lock_error "You must provide one of '${CLUSTERWIDE_LOCKS}' with a tier [worker,control,proxy]"
+	error "You must provide one of '${CLUSTERWIDE_LOCKS}' with a tier [worker,control,proxy]"
     fi
     tier=$2
 

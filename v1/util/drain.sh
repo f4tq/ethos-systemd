@@ -251,8 +251,7 @@ get_connections_by_task_id(){
 
 	    ;;
 	*)
-	    2> echo "Unknown network type: $mode  This can happen EASILY with docker as user can define their own network types/bridges etc/"
-	    exit -1
+	    error "Unknown network type: $mode  This can happen EASILY with docker as user can define their own network types/bridges etc/"
     esac
 }
 
