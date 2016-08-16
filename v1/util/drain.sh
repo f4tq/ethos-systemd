@@ -193,7 +193,7 @@ get_fw_rules(){
 		case $host in
 		    '::'|'0.0.0.0'|'*')
 			host='*'
-			echo "iptables -A SKOPOS -i eth0 -p tcp --syn -dport $port -j REJECT"
+			echo "iptables -A SKOPOS -p tcp --syn -dport $port -j REJECT"
 			;;
 		    *)
 			log "WARNING: don't know how to generate fw rule for $host"
@@ -370,7 +370,7 @@ drain_tcp(){
 	iptables -t filter -I FORWARD -j SKOPOS
     fi
     # generate and run the rules
-    generate_marathon_fw_rules | xargs -n 1 -I XX eval XX
+    generate_marathon_fw_rules | xargs -n 1 -IXX bash -c "XX"
     on_exit "iptables -F SKOPOS"
 
     # stop the slave
