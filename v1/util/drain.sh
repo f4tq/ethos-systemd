@@ -20,6 +20,9 @@ if [ -f /etc/profile.d/etcdctl.sh ]; then
 fi
 
 source $LOCALPATH/../lib/lock_helpers.sh
+
+assert_root
+
 verbose=false
 STOP_TIMEOUT=20
 
@@ -41,8 +44,7 @@ fi
 # 
 tmpdir=${TMPDIR-/tmp}/skopos-$RANDOM-$$
 mkdir -p $tmpdir
-
-trap 'ret=$?; rmdir "$tmpdir"  2>/dev/null; exit $ret' 0
+on_exit 'rmdir "$tmpdir" 2>/dev/null'
 
 # Cached files
 DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
@@ -101,12 +103,6 @@ update_docker_inspect(){
     fi
 }
 
-error() {
-    if [ ! -z "$1" ]; then
-	echo $1
-    fi
-    exit -1
-}
 #
 # cached file rep. docker inspect can be slow
 #

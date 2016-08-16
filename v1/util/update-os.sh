@@ -1,7 +1,5 @@
 #!/bin/bash 
 
-set -x
-
 LOCALPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $LOCALPATH
 
@@ -13,12 +11,7 @@ fi
 
 source $LOCALPATH/../lib/lock_helpers.sh
 
-die(){
-    if [ ! -z "$1" ]; then
-	> echo "$1"
-    fi
-    exit -1
-}
+assert_root
 
 [ -d /var/lib/skopos ] || ( mkdir -p /var/lib/skopos && [ -d /var/lib/skopos ] ) || die "can't make /var/lib/skopos"
 
@@ -70,10 +63,9 @@ if $(need_reboot) ; then
 	       # we hold the tier lock for reboot
 	       value=$($LOCALPATH/drain.sh drain "REBOOT")
 	       status=$?
-	       if [ $status -eq 0 -o  ( 0 -lt $(echo "$value"| grep -c "No docker instances") )  ]; then
+	       if [ $status -eq 0 ] || [ 0 -lt $(echo "$value"| grep -c "No docker instances") ]; then
 		   log "drain succeeded. rebooting"
 		   touch /var/lib/skopos/rebooting
-		   
 		   shutdown -r now
 	       else
 		   log "Can't drain.  Patiently waiting."
