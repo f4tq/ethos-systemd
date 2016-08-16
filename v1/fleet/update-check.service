@@ -1,0 +1,15 @@
+[Unit]
+Description=Check for CoreOS updates
+After=docker.service bootstrap.service
+Requires=docker.service
+Requires=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/environment
+ExecStart=/home/core/ethos-systemd/v1/util/update-check.sh
+
+[X-Fleet]
+Global=true
+
