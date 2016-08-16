@@ -25,6 +25,20 @@ CLUSTERWIDE_LOCKS="${BOOSTER_LOCK} ${UPDATE_DRAIN_LOCK} ${REBOOT_LOCK}"
 log(){
     echo "[$(date +%s)][$0] $*"
 }
+error() {
+    2> echo "[$(date +%s)][$0] $*"
+    exit -1
+}
+
+die(){
+    error $*
+}
+assert_root(){
+    if [ 0 -ne $(id -u) ]; then
+	die "You must be root to execute this script"
+    fi
+}
+
 lock_booster(){
     docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} lock $MACHINEID
 }
