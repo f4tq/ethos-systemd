@@ -8,7 +8,7 @@ LOCALPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 source /etc/environment
 
-2> echo "-------Starting skopos drain-------"
+>&2 echo "-------Starting skopos drain-------"
 
 if [ "${NODE_ROLE}" != "worker" ]; then
     >&2 echo "No drain for non-worker role ${NODE_ROLE}"
@@ -262,8 +262,8 @@ get_connections_by_task_id(){
 #
 update_slave_info() {
     curl -SsfLk http://${LOCAL_IP}:5051/state > $tmpdir/mesos-slave-$$.json
-    if [ $? -eq 0 -a -s $tmpdir/mesos-slave$$.json ]; then
-	mv $tmpdir/mesos-slave$$.json ${SLAVE_CACHE}
+    if [ $? -eq 0 -a -s $tmpdir/mesos-slave-$$.json ]; then
+	mv $tmpdir/mesos-slave-$$.json ${SLAVE_CACHE}
 	cat ${SLAVE_CACHE}
     else
 	echo
