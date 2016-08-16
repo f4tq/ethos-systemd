@@ -94,7 +94,12 @@ update_marathon_jobs(){
 #
 
 update_docker_inspect(){
-    docker inspect $(docker ps -q) | tee $DOCKER_INSPECT
+    procs="$(docker ps -q)"
+    if [ -z "$procs" ];then
+	echo -n "" | tee $DOCKER_INSPECT
+    else
+	docker inspect $procs | tee $DOCKER_INSPECT
+    fi
 }
 
 error() {
