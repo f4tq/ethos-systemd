@@ -22,11 +22,11 @@ need_reboot(){
 if [ -e /var/lib/skopos/rebooting ]; then
     log "Unlocking cluster reboot lock"
     unlock_reboot
-    if [ $? -eq 0 ];then
-	log "update_os| This is AWKWARD.  we were rebooting do to needs reboot but we can't unlock_reboot which we held.  Did someone unlock it: proceeding as if and ignoring"
+    if [ $? -ne 0 ];then
+	log "update_os| This is AWKWARD.  After rebooting,we can't unlock_reboot ( which we held ).  Did someone unlock it? : proceeding as if and ignoring"
     fi
     rm -f /var/lib/skopos/rebooting
-    rm -f /var/lib/skops/needs_reboot
+    rm -f /var/lib/skopos/needs_reboot
     if [ "REBOOT" == "$(host_state)" ] ; then
 	# This shouldn't happen but if the host lock reads REBOOT then something odd
 	# happened.  So unlock and make sure there are no rules left in the iptables SKOPOS chain
