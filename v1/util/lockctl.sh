@@ -126,7 +126,7 @@ case "$1" in
 	am_drain_holder
 	;;
     am_reboot_holder)
-	am_booster_holder
+	am_reboot_holder
 	;;
     am_booster_holder)
 	am_booster_holder
