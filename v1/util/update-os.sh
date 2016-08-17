@@ -23,7 +23,7 @@ if [ -e /var/lib/skopos/rebooting ]; then
     log "Unlocking cluster reboot lock"
     unlock_reboot
     if [ $? -eq 0 ];then
-	log "AWKWARD.  we were rebooting do to needs reboot but we can't unlock_reboot which we held.  Did someone unlock it: proceeding as if and ignoring"
+	log "update_os| This is AWKWARD.  we were rebooting do to needs reboot but we can't unlock_reboot which we held.  Did someone unlock it: proceeding as if and ignoring"
     fi
     rm -f /var/lib/skopos/rebooting
     rm -f /var/lib/skops/needs_reboot
@@ -54,16 +54,16 @@ while : ; do
 		value=$($LOCALPATH/drain.sh drain "REBOOT")
 		status=$?
 		if [ $status -eq 0 ] || [ 0 -lt $(echo "$value"| grep -c "No docker instances") ]; then
-		    log "drain succeeded. rebooting host_locks sez: $(host_state)"
+		    log "update-os|drain succeeded. rebooting host_locks sez: $(host_state)"
 		    touch /var/lib/skopos/rebooting
 		    shutdown -r now
 		else
-		    log "Can't drain.  Patiently waiting."
+		    log "update-os| Can't drain.  Patiently waiting."
 		    sleep 1
 		fi
 	    done
 	else
-	    log "Can't get reboot lock. sleeping"
+	    log "update-os|Can't get reboot lock. sleeping"
 	    sleep 1
 	fi
     fi

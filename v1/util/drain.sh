@@ -376,8 +376,8 @@ drain_tcp(){
     on_exit "iptables -F SKOPOS"
 
     # stop the slave
-    TIMEOUT=$(( $SECONDS + ${CONN_TIMEOUT} ))
-    log "drain_tcp|Now $SECONDS  Timeout in ${CONN_TIMEOUT} seconds"
+    TIMEOUT=$(( SECONDS + CONN_TIMEOUT ))
+    log "drain_tcp|Now $SECONDS  Timeout in $TIMEOUT seconds"
     while :; do
 	cnt=0
 
@@ -390,14 +390,14 @@ drain_tcp(){
 	    log "drain_tcp| Connections at zero"
 	    break
 	fi
-	if [[ $SECONDS > $TIMEOUT ]]; then
+	if ((  $SECONDS > $TIMEOUT )) ; then
             log "drain_tcp| Timeout ... with $cnt remaining connections"
             break
 	fi
 	log "drain_tcp| Waiting for $cnt more connections $SECONDS->$TIMEOUT"
         sleep 1
     done
-    log "done draining"
+    log "drain_tcp|done draining"
 }
 
 #
@@ -432,13 +432,13 @@ drain_docker() {
     for i in $(marathon_docker_ids) ; do
 	docker stop ${i}
     done
+    set -x
 
-    NOW=$SECONDS
-
-    MAX=$(($SECONDS + ${STOP_TIMEOUT} ))
+    MAX=$(( SECONDS + STOP_TIMEOUT ))
+    set +x 
     dead=0
-    log "drain_docker |Now $SECONDS  Timeout at ${STOP_TIMEOUT} seconds"
-    while [ $SECONDS -lt $MAX ]; do
+    log "drain_docker |Now $SECONDS  Timeout at $MAX seconds"
+    while (( $SECONDS <  $MAX )); do
          cnt=$(docker ps -q | egrep -c "$(marat)")
          if [ $cnt -eq 0 ]; then
 	     log "drain_docker| Stopped $i/${docker_id}"
@@ -446,7 +446,7 @@ drain_docker() {
              break
          fi
          sleep 1
-         echo "$SECONDS/$MAX. Waiting for $cnt to stop"
+         log  "drain_docker| $SECONDS/$MAX. Waiting for $cnt to stop"
     done
     
     log "drain_docker| Giving up waiting.  violently killing docker instances"
