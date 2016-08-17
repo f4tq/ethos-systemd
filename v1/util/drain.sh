@@ -27,6 +27,9 @@ mkdir -p $tmpdir
 on_exit 'rm -rf  "$tmpdir" '
 
 verbose=false
+# tcp connection timeout
+CONN_TIMEOUT=100
+# docker stop -> kill timeout 
 STOP_TIMEOUT=120
 
 # Get out local ip
@@ -373,7 +376,7 @@ drain_tcp(){
     on_exit "iptables -F SKOPOS"
 
     # stop the slave
-    TIMEOUT=$(( $SECONDS + 900 )) 
+    TIMEOUT=$(( $SECONDS + ${CONN_TIMEOUT} )) 
     while :; do
 	cnt=0
 
@@ -426,12 +429,12 @@ drain_docker() {
     
     # stop all the docker instances
     for i in $(marathon_docker_ids) ; do
-	echo docker stop ${i}
+	docker stop ${i}
     done
 
     NOW=$SECONDS
 
-    MAX=$((SECONDS+ ${STOP_TIMEOUT} ))
+    MAX=$(($NOW + ${STOP_TIMEOUT} ))
     dead=0
     
     while [ $SECONDS -lt $MAX ]; do
@@ -447,7 +450,7 @@ drain_docker() {
     
     echo "Giving up.  killing docker instances"
     for j in $(docker ps -q | egrep "$(marat)"); do
-	echo docker kill $j 
+	docker kill $j 
     done
 }
 
