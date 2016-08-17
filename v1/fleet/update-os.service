@@ -12,6 +12,7 @@ After=docker.service bootstrap.service
 Restart=on-failure
 RestartSec=20
 TimeoutStartSec=0
+User=root
 ExecStart=/home/core/ethos-systemd/v1/util/update-os.sh
 
 #ExecStartPre=/bin/ping -c1 ready.spartan
