@@ -441,7 +441,7 @@ drain_docker() {
     while (( $SECONDS <  $MAX )); do
          cnt=$(docker ps -q | egrep -c "$(marat)")
          if [ $cnt -eq 0 ]; then
-	     log "drain_docker| Stopped $i/${docker_id}"
+	     log "drain_docker all nicely stopped"
              dead=1
              break
          fi
@@ -449,10 +449,12 @@ drain_docker() {
          log  "drain_docker| $SECONDS/$MAX. Waiting for $cnt to stop"
     done
     
-    log "drain_docker| Giving up waiting.  violently killing docker instances"
     for j in $(docker ps -q | egrep "$(marat)"); do
+	log "drain_docker| Violently killing docker instance $j"
+
 	docker kill $j 
     done
+    log "drain_docker| All done"
 }
 
 #
