@@ -376,7 +376,8 @@ drain_tcp(){
     on_exit "iptables -F SKOPOS"
 
     # stop the slave
-    TIMEOUT=$(( $SECONDS + ${CONN_TIMEOUT} )) 
+    TIMEOUT=$(( $SECONDS + ${CONN_TIMEOUT} ))
+    log "drain_tcp|Now $SECONDS  Timeout in ${CONN_TIMEOUT} seconds"
     while :; do
 	cnt=0
 
@@ -434,21 +435,21 @@ drain_docker() {
 
     NOW=$SECONDS
 
-    MAX=$(($NOW + ${STOP_TIMEOUT} ))
+    MAX=$(($SECONDS + ${STOP_TIMEOUT} ))
     dead=0
-    
+    log "drain_docker |Now $SECONDS  Timeout at ${STOP_TIMEOUT} seconds"
     while [ $SECONDS -lt $MAX ]; do
          cnt=$(docker ps -q | egrep -c "$(marat)")
          if [ $cnt -eq 0 ]; then
-	     log "drain_docker: Stopped $i/${docker_id}"
+	     log "drain_docker| Stopped $i/${docker_id}"
              dead=1
              break
          fi
          sleep 1
-         echo "$SECONDS. Waiting for $cnt to stop"
+         echo "$SECONDS/$MAX. Waiting for $cnt to stop"
     done
     
-    echo "Giving up.  killing docker instances"
+    log "drain_docker| Giving up waiting.  violently killing docker instances"
     for j in $(docker ps -q | egrep "$(marat)"); do
 	docker kill $j 
     done
@@ -478,7 +479,9 @@ drain(){
     log "$MACHINEID got drain lock with lock token \"$token\""
     # we already have mesos/marathon/docker data
     systemctl stop ${MESOS_UNIT}
-    
+    if [ $? -ne 0 ]; then
+	exit -2
+    fi
     # update docker inspect just in case the lock took a while to get
 
     drain_tcp
