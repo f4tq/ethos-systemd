@@ -549,7 +549,7 @@ case "$1" in
 	drain_docker
 	;;
     drain)
-	drain
+	drain $2
 	;;
     
     *)
@@ -569,7 +569,8 @@ Usage: drain {marathon_jobs|marathon_docker_ids|marathon_docker_pids|marathon_do
      generate_marathon_fw_rules - show the listeners for each docker pid.  Used to block marathon with iptables
      drain_tcp - stops the mesos slave and waits for all the ports coming from host_ports in an ESTABLISHED state to drop to zero.
      drain_docker - takes 
-     drain   - locks host-lock 
+     drain <option token>  
+              - locks host-lock with "DRAIN|<token>" 
 		 - if it's not already locked.  
 	     - locks the drain cluster-wide lock
 	     - grabs mesos-slave,docker, and marathon data
