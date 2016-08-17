@@ -24,10 +24,10 @@ source $LOCALPATH/../lib/lock_helpers.sh
 assert_root
 tmpdir=${TMPDIR-/tmp}/skopos-$RANDOM-$$
 mkdir -p $tmpdir
-on_exit 'rmdir "$tmpdir" 2>/dev/null'
+on_exit 'rm -rf  "$tmpdir" '
 
 verbose=false
-STOP_TIMEOUT=20
+STOP_TIMEOUT=120
 
 # Get out local ip
 LOCAL_IP="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
@@ -376,10 +376,12 @@ drain_tcp(){
     TIMEOUT=$(( $SECONDS + 900 )) 
     while :; do
 	cnt=0
+
 	for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	    jj=$(get_connections_by_task_id $i)
 	    cnt=$(( $cnt + $jj ))
 	done
+
 	if [ $cnt -eq 0 ]; then
 	    log "drain_tcp| Connections at zero"
 	    break
@@ -470,12 +472,12 @@ drain(){
 	error "Can't get local host lock.  state: $state"
     fi
     on_exit 'unlock_host "$token"'
-    log "$MACHINE-ID got drain lock with lock token \"$token\""
+    log "$MACHINEID got drain lock with lock token \"$token\""
     # we already have mesos/marathon/docker data
     systemctl stop ${MESOS_UNIT}
     
     # update docker inspect just in case the lock took a while to get
-    DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
+
     drain_tcp
     drain_docker
     unlock_host "$token"
