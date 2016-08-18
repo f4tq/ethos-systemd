@@ -161,7 +161,7 @@ process_list(){
 #  Takes list of pids, finds listening sockets, and converts 0.0.0.0 into a pattern that will match any socket
 #
 listening_tcp(){
-    sudo netstat -tnlp | grep $(process_list $1| xargs -n 1 -IXX echo " -e XX") 
+    netstat -tnlp | grep $(process_list $1| xargs -n 1 -IXX echo " -e XX") 
 }
 #
 #  Takes a list of patterned listening sockets and makes it friendly for grep
