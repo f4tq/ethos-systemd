@@ -8,8 +8,6 @@ LOCALPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 source /etc/environment
 
->&2 echo "-------Starting skopos drain-------"
-
 if [ "${NODE_ROLE}" != "worker" ]; then
     >&2 echo "No drain for non-worker role ${NODE_ROLE}"
     exit 0
@@ -28,9 +26,9 @@ on_exit 'rm -rf  "$tmpdir" '
 
 verbose=false
 # tcp connection timeout
-CONN_TIMEOUT=100
+CONN_TIMEOUT=120
 # docker stop -> kill timeout 
-STOP_TIMEOUT=120
+STOP_TIMEOUT=180
 
 # Get out local ip
 LOCAL_IP="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
@@ -478,6 +476,7 @@ drain(){
 	error "Can't get local host lock.  state: $state"
     fi
     on_exit 'unlock_host "$token"'
+    log "-------Starting skopos drain-------"
     log "$MACHINEID got drain lock with lock token \"$token\""
     # we already have mesos/marathon/docker data
     systemctl stop ${MESOS_UNIT}
