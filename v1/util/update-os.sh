@@ -24,10 +24,24 @@ if [ -e /var/lib/skopos/rebooting ]; then
     
     health_url=""
     if [ "${NODE_ROLE}" == "control" ]; then
-	# TODO: ethos needs user/password
+	# WARNING: zk must be up before we allow other nodes to continue!
+	# DC/OS assumption: zk is running on control node.  Probably better way to detect
+	# 
+	# TODO: ethos
+	#    
+	#    - mesos/zk needs user/password
+	#    - docker image appropriate/nc brings netcat
+	#    - zk not in a zk systemd unit.
+	#    
+        while ! ( echo "stat" |docker run -i --rm appropriate/nc $LOCAL_IP 2181 ); do
+	    echo "Waiting for zookeeper"
+	    sleep 1
+	done
 	health_url="http://${LOCAL_IP}:5050/master/redirect"
     elif [ "${NODE_ROLE}" == "worker" ]; then
-	# TODO: ethos needs user/password	
+	# TODO: ethos mesos slave needs user/password
+	# TODO:  all worker nodes assumed to run mesos-slave???
+	#
 	health_url="http://${LOCAL_IP}:5051/state"
     elif [ "${NODE_ROLE}" == "proxy" ]; then
 	log "Unknown health_url for node role: ${NODE_ROLE}"
