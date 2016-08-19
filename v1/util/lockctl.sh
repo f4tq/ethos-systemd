@@ -45,6 +45,10 @@ Usage: $0 [un]lock_host|[un]lock_drain|[un]lock_reboot|[un]lock_booster|[host|dr
     drain_state  -- returns the list of machine-ids currently in possesion of the lock.  It can be empty or multiple
     booster_state
     reboot_state 
+
+    am_reboot_holder
+    am_drain_holder
+    am_booster_holder
 EOF
 	exit -1
 }
