@@ -10,6 +10,7 @@ if [ "${NODE_ROLE}" == "worker" ]; then
 fi
 
 source $LOCALPATH/../lib/lock_helpers.sh
+LOCAL_IP="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
 
 assert_root
 
@@ -20,7 +21,24 @@ need_reboot(){
 }
 
 if [ -e /var/lib/skopos/rebooting ]; then
-    log "Unlocking cluster reboot lock"
+    
+    health_url=""
+    if [ "${NODE_ROLE}" == "control" ]; then
+	# TODO: ethos needs user/password
+	health_url="http://${LOCAL_IP}:5050/master/redirect"
+    elif [ "${NODE_ROLE}" == "worker" ]; then
+	# TODO: ethos needs user/password	
+	health_url="http://${LOCAL_IP}:5051/state"
+    elif [ "${NODE_ROLE}" == "proxy" ]; then
+	log "Unknown health_url for node role: ${NODE_ROLE}"
+    fi
+
+    while  [ ! -z "${health_url}" ] && [ 0 -ne $(curl -SsfLk "${health_url}"  > /dev/null 2>&1 ) ]; do
+	log "Waiting for mesos-slave to boot before unlocking reboot"
+	sleep 1
+    done
+
+    log "mesos/up Unlocking cluster reboot lock"
     unlock_reboot
     if [ $? -ne 0 ];then
 	log "update_os| This is AWKWARD.  After rebooting,we can't unlock_reboot ( which we held ).  Did someone unlock it? : proceeding as if and ignoring"
