@@ -33,11 +33,12 @@ if [ -e /var/lib/skopos/rebooting ]; then
 	log "Unknown health_url for node role: ${NODE_ROLE}"
     fi
 
-    while  [ ! -z "${health_url}" ] && [ 0 -ne $(curl -SsfLk "${health_url}"  > /dev/null 2>&1 ) ]; do
-	log "Waiting for mesos-slave to boot before unlocking reboot"
+    set -x 
+    while  [ ! -z "${health_url}" ] && ! curl -SsfLk "${health_url}"  > /dev/null 2>&1  ; do
+	log "Waiting for ${health_url} to pass before unlocking reboot"
 	sleep 1
     done
-
+    set +x
     log "mesos/up Unlocking cluster reboot lock"
     unlock_reboot
     if [ $? -ne 0 ];then
