@@ -194,8 +194,8 @@ get_fw_rules(){
 		case $host in
 		    '::'|'0.0.0.0'|'*')
 			host='*'
-			echo "iptables -A SKOPOS -p tcp --syn -dport $port -j REJECT"
-			;;
+			echo "iptables -A SKOPOS -p tcp --syn --dport $port -j REJECT"
+OB			;;
 		    *)
 			log "WARNING: don't know how to generate fw rule for $host"
 		esac
@@ -368,6 +368,7 @@ drain_tcp(){
 	iptables -t filter -N SKOPOS
 	# we need to go before DOCKER
 	iptables -t filter -I FORWARD -j SKOPOS
+	iptables -t filter -I INPUT -j SKOPOS
     fi
     # generate and run the rules
     generate_marathon_fw_rules | xargs -n 1 -IXX bash -c "XX"
