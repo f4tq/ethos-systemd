@@ -195,7 +195,7 @@ get_fw_rules(){
 		    '::'|'0.0.0.0'|'*')
 			host='*'
 			echo "iptables -A SKOPOS -p tcp --syn --dport $port -j REJECT"
-OB			;;
+			;;
 		    *)
 			log "WARNING: don't know how to generate fw rule for $host"
 		esac
