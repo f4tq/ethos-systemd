@@ -3,14 +3,7 @@
 LOCALPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $LOCALPATH
 
-source /etc/environment
-
-if [ "${NODE_ROLE}" == "worker" ]; then
-    . /etc/profile.d/etcdctl.sh
-fi
-
 source $LOCALPATH/../lib/lock_helpers.sh
-LOCAL_IP="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
 
 assert_root
 
@@ -32,12 +25,20 @@ if [ -e /var/lib/skopos/rebooting ]; then
 	#    - mesos/zk needs user/password
 	#    - docker image appropriate/nc brings netcat
 	#    - zk not in a zk systemd unit.
-	#    
-        while ! ( echo "stat" |docker run -i --rm appropriate/nc $LOCAL_IP 2181 ); do
-	    echo "Waiting for zookeeper"
+	#
+	
+        while [ "imok" != "$(echo "ruok" | ncat "${LOCAL_IP}" 2181)" ]; do
+	    log "Waiting for zookeeper"
 	    sleep 1
 	done
+	# wait for etcd to show this node in the list
+	while [ 0 -eq $(etcdctl member list  | grep -c "${LOCAL_IP}" ) ];then
+	    log "Waiting for etcd"
+	    sleep 1
+	done
+
 	health_url="http://${LOCAL_IP}:5050/master/redirect"
+	      
     elif [ "${NODE_ROLE}" == "worker" ]; then
 	# TODO: ethos mesos slave needs user/password
 	# TODO:  all worker nodes assumed to run mesos-slave???
@@ -65,7 +66,6 @@ if [ -e /var/lib/skopos/rebooting ]; then
 	# happened.  So unlock and make sure there are no rules left in the iptables SKOPOS chain
 	#
         if [ 0 -lt $(iptables -t filter -nL -v | grep -c 'Chain SKOPOS') ]; then
-	    
 	    iptables -t filter -F SKOPOS
 	fi
 	unlock_host "REBOOT"

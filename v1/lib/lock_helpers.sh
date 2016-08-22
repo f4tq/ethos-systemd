@@ -1,7 +1,24 @@
 #!/usr/bin/bash -x
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+# Get the local ip
+LOCAL_IP="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
+#
+source /etc/environment
+#
+if [ -f /etc/profile.d/etcdctl.sh ]; then
+    . /etc/profile.d/etcdctl.sh
+fi
+
 source $DIR/helpers.sh
+
+if [ -z "${LOCKSMITHCTL_ENDPOINT}" ] ; then
+    if [ ! -z "${ETCDCTL_PEERS_ENDPOINT}" ] ;then
+        LOCKSMITHCTL_ENDPOINT="${ETCDCTL_PEERS_ENDPOINT}"
+    elif ( echo | ncat ${LOCAL_IP} 2379 >/dev/null 2>&1); then
+	LOCKSMITHCTL_ENDPOINT="${LOCAL_IP}:2379"
+    fi
+fi
 
 SKOPOS_CLUSTERWIDE_LOCKS=/adobe.com/locks/cluster-wide
 SKOPOS_PERHOST_LOCKS=/adobe.com/locks/per-host
@@ -15,6 +32,26 @@ BOOSTER_LOCK=booster_drain
 UPDATE_DRAIN_LOCK=coreos_drain
 REBOOT_LOCK=coreos_reboot
 CLUSTERWIDE_LOCKS="${BOOSTER_LOCK} ${UPDATE_DRAIN_LOCK} ${REBOOT_LOCK}"
+
+MESOS_UNIT=$(systemctl list-units | egrep 'dcos-mesos-slave|mesos-slave@'| awk '{ print $1}' )
+
+MESOS_USER="$(etcdctl get /mesos/config/username  2>/dev/null)"
+MESOS_PW="$(etcdctl get /mesos/config/password  2>/dev/null)"
+MESOS_CREDS=""
+if [ ! -z "${MESOS_USER}" -a ! -z "${MESOS_PW}" ];then
+   MESOS_CREDS="-u ${MESOS_USER}:${MESOS_PW}"
+fi
+
+
+# Get marathon info from etcd
+MARATHON_USER="$(etcdctl get /marathon/config/username)"
+MARATHON_PASSWORD="$(etcdctl get /marathon/config/password)"
+MARATHON_ENDPOINT="$(etcdctl get /flight-director/config/marathon-master)"
+
+MARATHON_CREDS=""
+if [ ! -z "${MARATHON_USER}" -a ! -z "${MARATHON_PASSWORD}" ];then
+   MARATHON_CREDS="-u ${MARATHON_USER}:${MARATHON_PASSWORD}"
+fi
 
 
 #

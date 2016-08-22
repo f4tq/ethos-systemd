@@ -6,20 +6,16 @@
 
 LOCALPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-source /etc/environment
-
-if [ "${NODE_ROLE}" != "worker" ]; then
-    >&2 echo "No drain for non-worker role ${NODE_ROLE}"
-    exit 0
-fi
-
-if [ -f /etc/profile.d/etcdctl.sh ]; then
-    . /etc/profile.d/etcdctl.sh
-fi
 
 source $LOCALPATH/../lib/lock_helpers.sh
 
 assert_root
+
+if [ "${NODE_ROLE}" != "worker" ]; then
+    >&2 echo "No mesos drain for non-worker role ${NODE_ROLE}"
+    exit 0
+fi
+
 tmpdir=${TMPDIR-/tmp}/skopos-$RANDOM-$$
 mkdir -p $tmpdir
 on_exit 'rm -rf  "$tmpdir" '
@@ -30,19 +26,6 @@ CONN_TIMEOUT=120
 # docker stop -> kill timeout 
 STOP_TIMEOUT=180
 
-# Get out local ip
-LOCAL_IP="$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)"
-MESOS_UNIT=$(systemctl list-units | egrep 'dcos-mesos-slave|mesos-slave@'| awk '{ print $1}' )
-
-# Get marathon info from etcd
-MARATHON_USER="$(etcdctl get /marathon/config/username)"
-MARATHON_PASSWORD="$(etcdctl get /marathon/config/password)"
-MARATHON_ENDPOINT="$(etcdctl get /flight-director/config/marathon-master)"
-
-MARATHON_CREDS=""
-if [ ! -z "${MARATHON_USER}" -a ! -z "${MARATHON_PASSWORD}" ];then
-   MARATHON_CREDS="-u ${MARATHON_USER}:${MARATHON_PASSWORD}"
-fi
 #
 #  A temp directory for cached output
 # 
@@ -262,7 +245,7 @@ get_connections_by_task_id(){
 # Make sure curl worked to host and that it got back something
 #
 update_slave_info() {
-    curl -SsfLk http://${LOCAL_IP}:5051/state > $tmpdir/mesos-slave-$$.json
+    curl -SsfLk ${MESOS_CREDS} http://${LOCAL_IP}:5051/state > $tmpdir/mesos-slave-$$.json
     if [ $? -eq 0 -a -s $tmpdir/mesos-slave-$$.json ]; then
 	mv $tmpdir/mesos-slave-$$.json ${SLAVE_CACHE}
 	cat ${SLAVE_CACHE}
