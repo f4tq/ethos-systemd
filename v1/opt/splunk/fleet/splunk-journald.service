@@ -22,8 +22,8 @@ sudo -E /usr/bin/docker run --name splunk-journald \
 -v /opt/splunk/etc/system/local:/var/opt/splunk/etc/system/local \
 --hostname=$($INSTANCEHOSTNAME) \
 -p 1514:1514/udp \
+-p 1515:1515/udp \
 -e SPLUNK_START_ARGS="--accept-license" \
--e SPLUNK_ADD='udp 1514 -sourcetype journald -hostname '$($INSTANCEHOSTNAME)' -index os -connection_host none' \
 $($IMAGE)"
 ExecStop=/usr/bin/docker stop splunk-journald
 [X-Fleet]

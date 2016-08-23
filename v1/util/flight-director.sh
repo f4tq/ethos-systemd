@@ -2,6 +2,14 @@
 
 IMAGE=$(etcdctl get /images/flight-director)
 
+#only set SCALER_ENDPOINT id booster is enabled
+SCALER_ENDPOINT=""
+if [ "$(etcdctl get /booster/config/enabled)" == "1" ] 
+then
+  SCALER_ENDPOINT=`etcdctl get /flight-director/config/scaler-endpoint`
+fi
+
+
 /usr/bin/docker run \
   --name flight-director \
   --net='host' \
@@ -32,4 +40,6 @@ IMAGE=$(etcdctl get /images/flight-director)
   -e FD_MARATHON_MASTER_PROTOCOL=`etcdctl get /flight-director/config/marathon-master-protocol` \
   -e FD_MESOS_MASTER_PROTOCOL=`etcdctl get /flight-director/config/mesos-master-protocol` \
   -e FD_ALLOW_MARATHON_UNVERIFIED_TLS=`etcdctl get /flight-director/config/allow-marathon-unverified-tls` \
+  -e FD_SCALER_PROTOCOL=`etcdctl get /flight-director/config/scaler-protocol` \
+  -e FD_SCALER_ENDPOINT=$SCALER_ENDPOINT \
   $IMAGE

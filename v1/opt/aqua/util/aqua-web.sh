@@ -2,15 +2,6 @@
 
 source /etc/environment
 
-# Wait for gateway to become active
-# GW_ACTIVE=$(fleetctl list-units | grep aqua-gateway.service | grep active)
-GW_ACTIVE=$(curl -s $AQUA_INTERNAL_ELB:3622)
-
-while [[ "$?" != "0" ]]; do
-	echo "Waiting for Aqua gateway to become active..."
-  sleep 5;
-	GW_ACTIVE=$(curl -s $AQUA_INTERNAL_ELB:3622)
-done
 
 IMAGE=$(etcdctl get /images/scalock-server)
 SCALOCK_ADMIN_PASSWORD=$(etcdctl get /aqua/config/password)
@@ -28,7 +19,6 @@ SCALOCK_TOKEN=$(etcdctl get /aqua/config/aqua-token)
    -e SCALOCK_DBPASSWORD=$DB_PASSWORD \
    -e SCALOCK_DBNAME=$SCALOCK_DB_NAME \
    -e SCALOCK_DBHOST=$SCALOCK_DB_ENDPOINT \
-   -e SCALOCK_SSH_IP_PORT=\"$SCALOCK_GATEWAY_ENDPOINT:3622\" \
    -e SCALOCK_AUDIT_DBUSER=$DB_USERNAME \
    -e SCALOCK_AUDIT_DBPASSWORD=$DB_PASSWORD \
    -e SCALOCK_AUDIT_DBNAME=$SCALOCK_AUDIT_DB_NAME \
@@ -41,3 +31,4 @@ SCALOCK_TOKEN=$(etcdctl get /aqua/config/aqua-token)
    -e BATCH_INSTALL_ENFORCE_MODE=y \
    -v /var/run/docker.sock:/var/run/docker.sock \
    $IMAGE"
+
