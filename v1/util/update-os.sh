@@ -31,12 +31,13 @@ if [ -e /var/lib/skopos/rebooting ]; then
 	    log "Waiting for zookeeper"
 	    sleep 1
 	done
+	log "Zookeeper good"
 	# wait for etcd to show this node in the list
-	while [ 0 -eq $(etcdctl member list  | grep -c "${LOCAL_IP}" ) ];then
+	while [ 0 -eq $(etcdctl member list  | grep -c "${LOCAL_IP}" ) ];do
 	    log "Waiting for etcd"
 	    sleep 1
 	done
-
+	log "etcd good"
 	health_url="http://${LOCAL_IP}:5050/master/redirect"
 	      
     elif [ "${NODE_ROLE}" == "worker" ]; then
