@@ -430,7 +430,6 @@ drain_tcp(){
     
     create_fw_rules
     
-    on_exit "iptables -F SKOPOS"
     # stop the slave
     TIMEOUT=$(( SECONDS + CONN_TIMEOUT ))
     log "drain_tcp|Now $SECONDS  Timeout in $TIMEOUT seconds"
@@ -543,8 +542,7 @@ drain(){
 	log "Warning: no mesos unit to stop"
     fi
     # update docker inspect just in case the lock took a while to get
-
+    
     drain_tcp
     drain_docker
-    unlock_host "$token"
 }

@@ -23,12 +23,19 @@ drain_control(){
     
     case "$1" in
 	drain_tcp)
+	    # the test drain flushes iptables
+	    
+	    on_exit "iptables -F SKOPOS"
 	    drain_tcp
 	    ;;
 	drain_docker)
 	    drain_docker
 	    ;;
 	drain)
+	    if [ -z "$2" ]; then
+		echo "WARNING: SKOPOS iptables rules reset on exit by default"
+		on_exit "iptables -F SKOPOS"
+	    fi
 	    drain $2
 	    ;;
 	connections)
