@@ -532,7 +532,8 @@ drain(){
     on_exit 'unlock_host "$token"'
     log "-------Starting skopos drain-------"
     log "$MACHINEID got drain lock with lock token \"$token\""
-    if [ "${MESOS_UNIT}" ]; then
+    
+    if [ "${NODE_ROLE}" == "worker" ] && [ ! -z "${MESOS_UNIT}" ]; then
 	# we already have mesos/marathon/docker data
 	systemctl stop ${MESOS_UNIT}
 	if [ $? -ne 0 ]; then
