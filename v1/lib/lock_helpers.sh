@@ -13,7 +13,9 @@ fi
 source $DIR/helpers.sh
 
 if [ -z "${LOCKSMITHCTL_ENDPOINT}" ] ; then
-    if [ ! -z "${ETCDCTL_PEERS_ENDPOINT}" ] ;then
+    if [ ! -z "${ETCDCTL_PEERS}" ] ;then
+        LOCKSMITHCTL_ENDPOINT="${ETCDCTL_PEERS}"
+    elif [ ! -z "${ETCDCTL_PEERS_ENDPOINT}" ] ;then
         LOCKSMITHCTL_ENDPOINT="${ETCDCTL_PEERS_ENDPOINT}"
     elif ( echo | ncat ${LOCAL_IP} 2379 >/dev/null 2>&1); then
 	LOCKSMITHCTL_ENDPOINT="${LOCAL_IP}:2379"
@@ -83,27 +85,27 @@ finish_ok(){
 }
 
 lock_booster(){
-    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} lock $MACHINEID
+    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} lock $MACHINEID
 }
 
 unlock_booster(){
-    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} unlock $MACHINEID
+    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} unlock $MACHINEID
 }    
 
 lock_drain(){
-    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${UPDATE_DRAIN_LOCK} --group ${NODE_ROLE} lock $MACHINEID
+    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${UPDATE_DRAIN_LOCK} --group ${NODE_ROLE} lock $MACHINEID
 }
 
 unlock_drain(){
-    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${UPDATE_DRAIN_LOCK} --group ${NODE_ROLE} unlock $MACHINEID
+    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${UPDATE_DRAIN_LOCK} --group ${NODE_ROLE} unlock $MACHINEID
 }
 
 lock_reboot(){
-    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${REBOOT_LOCK} --group ${NODE_ROLE} lock $MACHINEID
+    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${REBOOT_LOCK} --group ${NODE_ROLE} lock $MACHINEID
 }
 
 unlock_reboot(){
-    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${REBOOT_LOCK} --group ${NODE_ROLE} unlock $MACHINEID
+    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${REBOOT_LOCK} --group ${NODE_ROLE} unlock $MACHINEID
 }
 
     
@@ -116,7 +118,7 @@ cluster_init(){
 	fi	
         
 	for i in control worker proxy; do
-	    docker run --net host -i --rm -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS}  $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic $j --group $i status 
+	    docker run --net host -i --rm -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT}  $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic $j --group $i status 
 	    max_locks="1"
 	    x=$(etcdctl get ${SKOPOS_FEATURE_FLIP}/settings/etcd-locks/$j/num_$i 2>/dev/null )
 	    if [ $? -eq 0 -a ! -z "$x" ]; then
@@ -124,7 +126,7 @@ cluster_init(){
 	    fi
 	    if [ "1" != "${max_locks}" ]; then 
 		# allow 2 updates to happen
-		docker run --net host -i --rm -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS}  --topic $j --group $i set-max ${max_locks}
+		docker run --net host -i --rm -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS}  --topic $j --group $i set-max ${max_locks}
 	    fi
 	done 
     done
@@ -136,7 +138,7 @@ cluster_init(){
 # The id used in the lock defaults to $MACHINEID which is unique and owned by the host
 # 
 host_init(){
-    docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID status 
+    docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID status 
 }
 	
 
@@ -147,7 +149,7 @@ lock_host(){
     else
 	reason=$1
     fi
-    docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID lock $reason
+    docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID lock $reason
 }
 unlock_host(){
 
@@ -156,7 +158,7 @@ unlock_host(){
     else
 	reason=$1
     fi
-    docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${ETCDCTL_PEERS} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID unlock $reason
+    docker run --net host -i --rm   -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE locksmithctl --path ${SKOPOS_PERHOST_LOCKS} --topic $MACHINEID unlock $reason
 }
 
 host_state(){
