@@ -4,7 +4,7 @@ LOCALPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $LOCALPATH
 
 source $LOCALPATH/../lib/lock_helpers.sh
-
+on_exit "log 'Goodbye...'"
 assert_root
 
 [ -d /var/lib/skopos ] || ( mkdir -p /var/lib/skopos && [ -d /var/lib/skopos ] ) || die "can't make /var/lib/skopos"
