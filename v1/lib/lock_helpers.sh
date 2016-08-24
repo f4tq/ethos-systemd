@@ -35,7 +35,7 @@ UPDATE_DRAIN_LOCK=coreos_drain
 REBOOT_LOCK=coreos_reboot
 CLUSTERWIDE_LOCKS="${BOOSTER_LOCK} ${UPDATE_DRAIN_LOCK} ${REBOOT_LOCK}"
 
-MESOS_UNIT=$(systemctl list-units | egrep 'dcos-mesos-slave|mesos-slave@'| awk '{ print $1}' )
+MESOS_UNIT=$(systemctl list-units | egrep 'dcos-mesos-slave|mesos-slave@|dcos-mesos-master|mesos-master'| awk '{ print $1}' )
 
 MESOS_USER="$(etcdctl get /mesos/config/username  2>/dev/null)"
 MESOS_PW="$(etcdctl get /mesos/config/password  2>/dev/null)"

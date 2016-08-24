@@ -532,10 +532,14 @@ drain(){
     on_exit 'unlock_host "$token"'
     log "-------Starting skopos drain-------"
     log "$MACHINEID got drain lock with lock token \"$token\""
-    # we already have mesos/marathon/docker data
-    systemctl stop ${MESOS_UNIT}
-    if [ $? -ne 0 ]; then
-	exit -2
+    if [ "${MESOS_UNIT}" ]; then
+	# we already have mesos/marathon/docker data
+	systemctl stop ${MESOS_UNIT}
+	if [ $? -ne 0 ]; then
+	    exit -2
+	fi
+    else
+	log "Warning: no mesos unit to stop"
     fi
     # update docker inspect just in case the lock took a while to get
 
