@@ -354,7 +354,7 @@ show_marathon_connections() {
     else
 	if [ 0 -lt $(systemctl list-units | grep -c "dcos-") ]; then
 	    for conn in $DCOS_CONTROL_PORTS; do
-		ss -t -o state established | awk -v port=$conn '(index($3, port) != 0) {printf("%s %s\n",$3,$4)b'
+		ss -t -o state established | awk -v port=$conn '(index($3, port) != 0) {printf("%s %s\n",$3,$4)}'
 	    done
 	else
 	    # ethos
