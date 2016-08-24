@@ -23,7 +23,7 @@ SLAVE_CACHE="$tmpdir/mesos_slave_$(date +%s)"
 THIS_SLAVES_MARATHON_JOBS=""
 
 DCOS_PROXY_PORTS=""
-DCOS_CONTROL_PORTS="2181 2379 8080 5050"
+DCOS_CONTROL_PORTS="2181 8080 5050"
 ##########
 
 ###  Functions
