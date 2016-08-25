@@ -426,13 +426,19 @@ drain_tcp(){
 	iptables -t filter -I FORWARD -j SKOPOS
 	iptables -t filter -I INPUT -j SKOPOS
     fi
-    # generate and run the rules
-    
     create_fw_rules
-    
+
+    # generate and run the rules
+    if [ "#{NODE_ROLE}" == "control" ] ;then
+	while (curl -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader | jq -r '.leader'| grep ${LOCAL_IP}); do
+	    log "Waiting for this node to relinquish marathon leadership"
+	    sleep 1
+	done
+    fi
+
     # stop the slave
     TIMEOUT=$(( SECONDS + CONN_TIMEOUT ))
-    log "drain_tcp|Now $SECONDS  Timeout in $TIMEOUT seconds"
+    log "drain_tcp|Now @ $SECONDS seconds: Timeout @ $TIMEOUT seconds"
     cnt=0
     while :; do
         cnt=$(get_connection_count )
@@ -488,7 +494,7 @@ drain_docker() {
     MAX=$(( SECONDS + STOP_TIMEOUT ))
     set +x 
     dead=0
-    log "drain_docker |Now $SECONDS  Timeout at $MAX seconds"
+    log "drain_docker |Now @ $SECONDS seconds with Timeout @ $MAX seconds"
     while (( $SECONDS <  $MAX )); do
          cnt=$(docker ps -q | egrep -c "$(marat)")
          if [ $cnt -eq 0 ]; then
