@@ -19,11 +19,16 @@ STOP_TIMEOUT=180
 
 # Cached files
 DOCKER_INSPECT="$tmpdir/docker_inspect_$(date +%s)"
+DOCKER_INSPECT_DIR="$tmpdir/inspect"
 SLAVE_CACHE="$tmpdir/mesos_slave_$(date +%s)"
 THIS_SLAVES_MARATHON_JOBS=""
 
 DCOS_PROXY_PORTS=""
-DCOS_CONTROL_PORTS="2181 8080 5050"
+DCOS_CONTROL_PORTS="8080 5050"
+
+INSPECT_TIMEOUT=60
+last_inspect=0
+
 ##########
 
 ###  Functions
@@ -68,19 +73,42 @@ update_marathon_jobs(){
 #
 
 update_docker_inspect(){
-    procs="$(docker ps -q)"
-    if [ -z "$procs" ];then
-	echo -n "" | tee $DOCKER_INSPECT
-    else
-	docker inspect $procs | tee $DOCKER_INSPECT
+    last_inspect=$SECONDS
+    mkdir -p ${DOCKER_INSPECT_DIR}
+    for i in $(docker ps -q); do
+	if [ ! -f ${DOCKER_INSPECT_DIR}/$i.json ]; then
+	    # docker inspect returns array of 1 item.  unpeel it
+	    docker inspect $i | jq '.[]'> ${DOCKER_INSPECT_DIR}/$i.json 2>/dev/null
+	fi
+    done
+    
+    declare -a jsons
+    jsons=($(ls -1 ${DOCKER_INSPECT_DIR}/*.json 2>/dev/null) )
+    
+    echo '[' > ${DOCKER_INSPECT}
+    if [ ${#jsons[@]} -gt 0 ]; then # if the list is not empty
+	cat "${jsons[0]}" >> ${DOCKER_INSPECT} # concatenate the first file to the manifest...
+	unset jsons[0]                     # and remove it from the list
+	for f in "${jsons[@]}"; do         # iterate over the rest
+	    echo "," >>${DOCKER_INSPECT}
+	    cat "$f" >>${DOCKER_INSPECT}
+	done
     fi
+    echo ']' >> $DOCKER_INSPECT
+    cat $DOCKER_INSPECT   
 }
-
+docker_ids(){
+    docker_inspect | jq -r '.[]|.Id'
+}
 #
 # cached file rep. docker inspect can be slow
 #
 docker_inspect(){
-    cat ${DOCKER_INSPECT}
+    if [ ${last_inspect} -eq 0 ] ||  ((  ( $SECONDS  - ${last_inspect} ) > ${INSPECT_TIMEOUT} )) ; then
+	update_docker_inspect
+    else
+	cat ${DOCKER_INSPECT}
+    fi
 }
 
 # find_docker_id_by_taskId
@@ -113,6 +141,7 @@ find_docker_networkmode_by_taskId(){
     fi
     docker_inspect | jq -r --arg taskId "$taskId" '.[] | select(.Config.Env[] | contains($taskId ))| .HostConfig.NetworkMode'
 }
+
 # output the whole stanza given the mesos taskId
 find_docker_stanza_by_taskId(){
     taskId="$1"
@@ -121,6 +150,23 @@ find_docker_stanza_by_taskId(){
     fi
     docker_inspect | jq -r --arg taskId "$taskId" '.[] | . as $d | select(.Config.Env[] | contains($taskId ))| $d'
 }
+
+find_docker_networkmode_by_id(){
+    dockerId="$1"
+    if [ -z "$dockerId" ]; then
+	error "Missing docker.Id in call to find_docker_networkmode_by_id"
+    fi
+    docker_inspect | jq -r --arg Id "$dockerId" '.[] | select(.Id == $Id ) | .HostConfig.NetworkMode'
+}
+
+find_docker_stanza_by_id(){
+    dockerId="$1"
+    if [ -z "$dockerId" ]; then
+	error "Missing docker.Id in call to find_docker_stanza_by_id"
+    fi
+    docker_inspect | jq -r --arg Id "$dockerId" '.[] | select(.Id == $Id ) | .'
+}
+
 
 #
 # Produces process tree given docker pid taken from docker inspect
@@ -133,7 +179,7 @@ process_list(){
 #  Takes list of pids, finds listening sockets, and converts 0.0.0.0 into a pattern that will match any socket
 #
 listening_tcp(){
-    netstat -tnlp | grep $(process_list $1| xargs -n 1 -IXX echo " -e XX") 
+    netstat -tnlp | grep $(process_list $1| xargs -n 1 -IXX echo " -e XX")
 }
 #
 #  Takes a list of patterned listening sockets and makes it friendly for grep
@@ -144,21 +190,21 @@ listening_patterns(){
 # output the whole stanza given the mesos taskId
 
 get_fw_rules(){
-    taskId=$1
-    mode=$(find_docker_networkmode_by_taskId $taskId)
+    dockerId=$1
+    mode=$(find_docker_networkmode_by_id $dockerId)
     case "$mode" in
 	bridge)
 	    #
 	    #      this                                    V is .[] with all
 	    #
-            find_docker_stanza_by_taskId $taskId | jq -r ' . | .NetworkSettings as $in | 
+            find_docker_stanza_by_id $dockerId | jq -r ' . | .NetworkSettings as $in | 
              $in.Ports|keys[] |  
              if ( $in.Ports[.] | length) > 0 then 
                  [ "iptables -A SKOPOS -p ", (. | split("/") | last)," --dport ",(. | split("/") | first),"-d",$in.Networks.bridge.IPAddress, "-j REJECT "]|join(" ")  
              else ""  end'
 	    ;;
 	host)
-	    pid=$(find_docker_pid_by_taskId $taskId)
+	    pid=$(find_docker_stanza_by_id $dockerId | jq -r '.State.Pid')
 	    for hp in $(listening_tcp $pid |awk '{print $4}'); do
 		port=$(echo $hp | grep -o '[^:]*$')
 		host=$(echo $hp | sed "s/:$port\$//")
@@ -168,8 +214,11 @@ get_fw_rules(){
 			host='*'
 			echo "iptables -A SKOPOS -p tcp --syn --dport $port -j REJECT"
 			;;
+                    [0-9]*)
+			echo "iptables -A SKOPOS -p tcp --syn -d $host --dport $port -j REJECT"
+			;;
 		    *)
-			log "WARNING: don't know how to generate fw rule for $host"
+			error_log "WARNING: don't know how to generate fw rule for $host"
 		esac
 	    done
 	    ;;
@@ -181,7 +230,7 @@ get_connections_by_docker_pid(){
     mode=$2
     verbose=$3
     case "$mode" in
-	bridge)
+	bridge|default)
 	    if $verbose; then
 		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E
 	    else
@@ -308,7 +357,7 @@ generate_marathon_fw_rules() {
 	    if $verbose; then
 		echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
 	    fi
-	    get_fw_rules $i | grep -v -E '^\s*$'
+	    get_fw_rules $docker_id | grep -v -E '^\s*$'
 	done
     elif [ "${NODE_ROLE}" == "control" ] || [ "${NODE_ROLE}" == "proxy" ];then
 	if [ 0 -lt $(systemctl list-units | grep -c "dcos-") ]; then
@@ -316,8 +365,8 @@ generate_marathon_fw_rules() {
 		echo iptables -A SKOPOS -p tcp --syn --dport $conn -d 0.0.0.0/0 -j REJECT
 	    done
 	else
-	    for i in "$(docker ps -q)"; do
-		get_fw_rules $i | grep -v -E '^\s*$' | xargs -n 1 -IXX echo"XX"
+	    for i in $(docker_ids); do
+		get_fw_rules $i | grep -v -E '^\s*$' | xargs -n 1 -IXX echo "XX"
 	    done
 	fi
     fi
@@ -334,7 +383,7 @@ create_fw_rules(){
 		iptables -A SKOPOS -p tcp --syn --dport $conn -d 0.0.0.0/0 -j REJECT
 	    done
 	else
-	    for i in "$(docker ps -q)"; do
+	    for i in $(docker_ids); do
 		get_fw_rules $i | grep -v -E '^\s*$' | xargs -n 1 -IXX bash -c "XX"
 	    done
 	fi
@@ -358,10 +407,10 @@ show_marathon_connections() {
 	    done
 	else
 	    # ethos
-	    for taskId in "$(docker ps -q)";  do
+	    for taskId in $(docker_ids);  do
 		task_pid=$(docker inspect -f '{{.State.Pid}}' $taskId)
 		mode=$(docker inspect -f '{{.HostConfig.NetworkMode}}' $taskId)
-		get_connections_by_docker_pid $task_pid $mode $verbose
+		get_connections_by_docker_pid $task_pid $mode true
 	    done
 	fi
     fi
@@ -385,7 +434,7 @@ get_connection_count(){
 	    echo $cnt
 	else
 	    # ethos
-	    for taskId in "$(docker ps -q)";  do
+	    for taskId in $(docker_ids);  do
 		task_pid=$(docker inspect -f '{{.State.Pid}}' $taskId)
 		mode=$(docker inspect -f '{{.HostConfig.NetworkMode}}' $taskId)
 		jj=$((get_connections_by_docker_pid $task_pid $mode $verbose))
@@ -411,6 +460,8 @@ just_ports() {
     # just ports.  Put out a leading ':' after the join
     marathon_jobs | jq -r 'reduce .[] as $list ([] ; . + $list.mappings)| reduce .[] as $foo ([] ; . + [($foo| split(":")|last)])| join("|:") |  if ( . | length ) > 0 then  ":" + . else . end'
 }
+
+
 #
 # drain all the connections associated with this host
 #
@@ -419,7 +470,23 @@ just_ports() {
 # The SKOPOS chain is flushed on exit
 #
 drain_tcp(){
-    # block marathon health checks with iptables
+    # generate and run the rules
+    if [ "#{NODE_ROLE}" == "control" ] ;then
+	if (curl -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader | jq -r '.leader'| grep ${LOCAL_IP}); then
+	    curl -X DELETE -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader
+	     
+	    while (curl -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader | jq -r '.leader'| grep ${LOCAL_IP}); do
+		log "Waiting for this node to relinquish marathon leadership"
+		sleep 1
+	    done
+	    log "Marathon leadership abdicated"
+	fi
+    fi
+    if ( $LOCALPATH/../util/schedule_mesos_maintenance.sh ) ; then
+	$LOCALPATH/../util/down_mesos.sh
+    fi
+
+        # block marathon health checks with iptables
     if [ 0 -eq $(sudo iptables -nL -v | grep -c 'Chain SKOPOS') ]; then
 	iptables -t filter -N SKOPOS
 	# we need to go before DOCKER
@@ -427,14 +494,6 @@ drain_tcp(){
 	iptables -t filter -I INPUT -j SKOPOS
     fi
     create_fw_rules
-
-    # generate and run the rules
-    if [ "#{NODE_ROLE}" == "control" ] ;then
-	while (curl -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader | jq -r '.leader'| grep ${LOCAL_IP}); do
-	    log "Waiting for this node to relinquish marathon leadership"
-	    sleep 1
-	done
-    fi
 
     # stop the slave
     TIMEOUT=$(( SECONDS + CONN_TIMEOUT ))
@@ -489,14 +548,13 @@ drain_docker() {
     for i in $(marathon_docker_ids) ; do
 	docker stop ${i}
     done
-    set -x
 
     MAX=$(( SECONDS + STOP_TIMEOUT ))
-    set +x 
+
     dead=0
     log "drain_docker |Now @ $SECONDS seconds with Timeout @ $MAX seconds"
     while (( $SECONDS <  $MAX )); do
-         cnt=$(docker ps -q | egrep -c "$(marat)")
+         cnt=$(docker_ids | egrep -c "$(marat)")
          if [ $cnt -eq 0 ]; then
 	     log "drain_docker all nicely stopped"
              dead=1
@@ -506,7 +564,7 @@ drain_docker() {
          log  "drain_docker| $SECONDS/$MAX. Waiting for $cnt to stop"
     done
     
-    for j in $(docker ps -q | egrep "$(marat)"); do
+    for j in $(docker_ids | egrep "$(marat)"); do
 	log "drain_docker| Violently killing docker instance $j"
 
 	docker kill $j 

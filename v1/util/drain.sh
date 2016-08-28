@@ -16,10 +16,6 @@ assert_root
 # and running natively for dcos
 #
 drain_control(){
-    if [ ! -z "$1" ];then
-	# Get docker info
-	update_docker_inspect
-    fi
     
     case "$1" in
 	drain_tcp)

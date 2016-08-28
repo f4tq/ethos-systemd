@@ -37,12 +37,31 @@ CLUSTERWIDE_LOCKS="${BOOSTER_LOCK} ${UPDATE_DRAIN_LOCK} ${REBOOT_LOCK}"
 
 MESOS_UNIT=$(systemctl list-units | egrep 'dcos-mesos-slave|mesos-slave@|dcos-mesos-master|mesos-master'| awk '{ print $1}' )
 
+
 MESOS_USER="$(etcdctl get /mesos/config/username  2>/dev/null)"
 MESOS_PW="$(etcdctl get /mesos/config/password  2>/dev/null)"
 MESOS_CREDS=""
 if [ ! -z "${MESOS_USER}" -a ! -z "${MESOS_PW}" ];then
    MESOS_CREDS="-u ${MESOS_USER}:${MESOS_PW}"
 fi
+MESOS_PROTO=http
+if [ 0 -lt $( systemctl list-units | grep -c 'dcos-mesos') ]; then
+    # dns can lag behind what /redirect sez.
+    MESOS_MASTER="master.mesos:5050"
+    MESOS_URL="http://${MESOS_MASTER}"
+elif ( etcdctl get /flight-director/config/mesos-master ); then
+    MESOS_MASTER=$(etcdctl get /flight-director/config/mesos-master)
+    MESOS_PROTO=$(etcdctl get /flight-director/config/mesos-master-protocol)
+else
+    error "Don't know where mesos master is located"
+fi
+MESOS_URL="${MESOS_PROTO}://${MESOS_MASTER}"
+#
+# we need to use the redirect because dc/os dns strangely lags what mesos thinks is master
+#
+#MESOS_MASTER=$(curl -sI ${MESOS_CREDS} ${MESOS_URL}/redirect | grep Location | awk -F'Location: //' '{ print $2}'| awk '{ print $1}')
+MESOS_MASTER=$(curl -sI ${MESOS_CREDS} ${MESOS_URL}/redirect | grep Location | tr -d '\r\n' | sed  's!Location: //\(.*\)!\1!')
+MESOS_URL="${MESOS_PROTO}://${MESOS_MASTER}"
 
 
 # Get marathon info from etcd
@@ -63,6 +82,9 @@ fi
 #
 log(){
     echo "[$(date +%s)][$0] $*"
+}
+error_log(){
+    >&2 echo "[$(date +%s)][$0] $*"
 }
 error() {
     >&2  echo "[$(date +%s)][$0] $*"
@@ -241,7 +263,7 @@ am_booster_holder(){
 
 on_exit_acc () {
     local next="$1"
-        eval "on_exit () {
+    eval "on_exit () {
         local oldcmd='$(echo "$next" | sed -e s/\'/\'\\\\\'\'/g)'
         local newcmd=\"\$oldcmd; \$1\"
         trap -- \"\$newcmd\" 0

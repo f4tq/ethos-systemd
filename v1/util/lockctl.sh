@@ -73,7 +73,7 @@ case "$1" in
 	fi
 	unlock_host "$token"
 	if [ $? -ne 0 ]; then
-	    log "WARNING: host unlock failed.  You must use the `host_state` value"
+	    log "Not locked"
 	fi
 	log "AFTER host unlock: host state: '$(host_state)'"
 	;;
