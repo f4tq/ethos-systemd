@@ -471,7 +471,7 @@ just_ports() {
 #
 drain_tcp(){
     # generate and run the rules
-    if [ "#{NODE_ROLE}" == "control" ] ;then
+    if [ "${NODE_ROLE}" == "control" ] ;then
 	if (curl -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader | jq -r '.leader'| grep ${LOCAL_IP}); then
 	    curl -X DELETE -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader
 	     
