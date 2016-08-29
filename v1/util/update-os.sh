@@ -55,6 +55,8 @@ if [ -e /var/lib/skopos/rebooting ]; then
     done
 
     log "mesos/up Unlocking cluster reboot lock"
+    # bring ourselves up.
+    $LOCALPATH/up_mesos.sh
     unlock_reboot
     if [ $? -ne 0 ];then
 	log "update_os| This is AWKWARD.  After rebooting,we can't unlock_reboot ( which we held ).  Did someone unlock it? : proceeding as if and ignoring"

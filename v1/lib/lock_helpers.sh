@@ -53,7 +53,7 @@ CLUSTERWIDE_LOCKS="${BOOSTER_LOCK} ${UPDATE_DRAIN_LOCK} ${REBOOT_LOCK}"
 
 MESOS_UNIT=$(systemctl list-units | egrep 'dcos-mesos-slave|mesos-slave@|dcos-mesos-master|mesos-master'| awk '{ print $1}' )
 
-set -x
+
 MESOS_USER="$(etcdctl get /mesos/config/username  2>/dev/null)"
 MESOS_PW="$(etcdctl get /mesos/config/password  2>/dev/null)"
 MESOS_CREDS=""
@@ -78,7 +78,7 @@ MESOS_URL="${MESOS_PROTO}://${MESOS_MASTER}"
 #MESOS_MASTER=$(curl -sI ${MESOS_CREDS} ${MESOS_URL}/redirect | grep Location | awk -F'Location: //' '{ print $2}'| awk '{ print $1}')
 MESOS_MASTER=$(curl -sI ${MESOS_CREDS} ${MESOS_URL}/redirect | grep Location | tr -d '\r\n' | sed  's!Location: //\(.*\)!\1!')
 MESOS_URL="${MESOS_PROTO}://${MESOS_MASTER}"
-set +x
+
 
 # Get marathon info from etcd
 MARATHON_USER="$(etcdctl get /marathon/config/username)"
