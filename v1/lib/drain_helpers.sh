@@ -484,6 +484,8 @@ drain_tcp(){
     fi
     if ( $LOCALPATH/../util/schedule_mesos_maintenance.sh ) ; then
 	$LOCALPATH/../util/down_mesos.sh
+    else
+	log "schedule meso maintenance failed"
     fi
 
         # block marathon health checks with iptables
