@@ -9,9 +9,9 @@ on_exit 'rm -rf  "$tmpdir" '
 
 verbose=false
 # tcp connection timeout
-CONN_TIMEOUT=120
+CONN_TIMEOUT=240
 # docker stop -> kill timeout 
-STOP_TIMEOUT=180
+STOP_TIMEOUT=300
 
 #
 #  A temp directory for cached output
@@ -381,6 +381,8 @@ create_fw_rules(){
 	if [ 0 -lt $(systemctl list-units | grep -c "dcos-") ]; then
 	    for conn in $DCOS_CONTROL_PORTS; do
 		iptables -A SKOPOS -p tcp --syn --dport $conn -d 0.0.0.0/0 -j REJECT
+		# ELB health checks are long.  this is very AWS specific and only works if the endpoint is not SSL
+		iptables -A SKOPOS -p tcp --dport $conn -m string --algo bm --string "ELB-HealthChecker" -j REJECT
 	    done
 	else
 	    for i in $(docker_ids); do
@@ -485,9 +487,11 @@ drain_tcp(){
     if ( $LOCALPATH/../util/schedule_mesos_maintenance.sh ) ; then
 	$LOCALPATH/../util/down_mesos.sh
     else
-	log "schedule meso maintenance failed"
+	error "schedule mesos maintenance failed.  host already down? use mesos_status.sh to see"
     fi
-
+    $LOCALPATH/../util/mesos_status.sh
+    show_marathon_connections
+    
         # block marathon health checks with iptables
     if [ 0 -eq $(sudo iptables -nL -v | grep -c 'Chain SKOPOS') ]; then
 	iptables -t filter -N SKOPOS
@@ -496,7 +500,7 @@ drain_tcp(){
 	iptables -t filter -I INPUT -j SKOPOS
     fi
     create_fw_rules
-
+    
     # stop the slave
     TIMEOUT=$(( SECONDS + CONN_TIMEOUT ))
     log "drain_tcp|Now @ $SECONDS seconds: Timeout @ $TIMEOUT seconds"
