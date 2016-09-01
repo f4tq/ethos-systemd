@@ -3,13 +3,17 @@ Description=Check for CoreOS updates
 After=docker.service bootstrap.service
 Requires=docker.service
 Requires=network-online.target
+Requires=update-os.service
 After=network-online.target
 
 [Service]
 Type=oneshot
+User=root
 EnvironmentFile=/etc/environment
 ExecStart=/home/core/ethos-systemd/v1/util/update-check.sh
 
 [X-Fleet]
 Global=true
+# just the worker tier for now and then only if added to etcd /services
+MachineMetadata=role=worker
 
