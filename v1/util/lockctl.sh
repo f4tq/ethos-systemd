@@ -54,76 +54,75 @@ EOF
 }
 case "$1" in
     lock_host)
-	log "BEFORE host lock: host state: '$(host_state)'"
+
 	token="DRAIN"
 	if [ ! -z "$2" ]; then
 	    token="$2"
 	fi
 	lock_host "$token"
 	if [ $? -ne 0 ]; then
-	    log "WARNING: host lock failed.  You must use the host state value"
+	    error_log "host: Can't locked"
 	fi
-	log "AFTER host lock: host state: '$(host_state)'"
+
 	;;
     unlock_host)
-	log "BEFORE host unlock: host state: '$(host_state)'"
+
 	token="DRAIN"
 	if [ ! -z "$2" ]; then
 	    token="$2"
 	fi
 	unlock_host "$token"
 	if [ $? -ne 0 ]; then
-	    log "Not locked"
+	    error_log "host: Can't lock"
 	fi
-	log "AFTER host unlock: host state: '$(host_state)'"
+
 	;;
     lock_drain)
-	log "drain lock BEFORE: '$(drain_state)'"
+
 	lock_drain
 	if [ $? -ne 0 ]; then
-	    log "WARNING: drain lock failed"
+	    error_log "drain: Can't lock"
 	fi
-	log "drain lock AFTER: '$(drain_state)'"
+
 	;;
     unlock_drain)
-	log "drain_lock BEFORE: '$(drain_state)'"
+
 	unlock_drain
 	if [ $? -ne 0 ]; then
-	    log "WARNING: drain unlock failed"
+	    error_log "drain: Can't unlock"
 	fi
-	log "drain_lock AFTER : '$(drain_state)'"
+
 	;;
     lock_reboot)
-	log "reboot_lock BEFORE : '$(reboot_state)'"
+
 	lock_reboot
 	if [ $? -ne 0 ]; then
-	    log "WARNING: reboot lock failed"
+	    error_log "reboot: Can't lock"
 	fi
-	log "reboot lock AFTER: '$(reboot_state)'"
+
 	;;
     unlock_reboot)
-	log "reboot unlock BEFORE: '$(reboot_state)'"
+
 	unlock_reboot
 	if [ $? -ne 0 ]; then
-	    log "WARNING: reboot unlock failed"
+	    error_log "reboot: Can't unlock"
 	fi
-	log "reboot unlock AFTER: '$(reboot_state)'"
+
 	;;
     lock_booster)
-	log "booster lock BEFORE: '$(booster_state)'"
+
 	lock_booster
 	if [ $? -ne 0 ]; then
-	    log "WARNING: booster lock failed"
+	    error_log "booster: Can't lock"
 	fi
-	log "booster lock AFTER: '$(booster_state)'"
+
 	;;
     unlock_booster)
-	log "booster unlock BEFORE: '$(booster_state)'"
+
 	unlock_booster
 	if [ $? -ne 0 ]; then
-	    log "WARNING: booster unlock failed"
+	    error_log "booster: Can't unlock"
 	fi
-	log "booster unlock AFTER: '$(booster_state)'"
 	;;
 
     am_drain_holder)
