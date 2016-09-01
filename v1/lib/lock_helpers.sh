@@ -1,4 +1,4 @@
-#!/usr/bin/bash -x
+#!/usr/bin/bash 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Get the local ip
@@ -61,22 +61,22 @@ if [ ! -z "${MESOS_USER}" -a ! -z "${MESOS_PW}" ];then
    MESOS_CREDS="-u ${MESOS_USER}:${MESOS_PW}"
 fi
 MESOS_PROTO=http
-if [ 0 -lt $( systemctl list-units | grep -c 'dcos-mesos') ]; then
+if [ 0 -lt $( systemctl list-units | grep -c 'dcos-') ]; then
     # dns can lag behind what /redirect sez.
     MESOS_MASTER="master.mesos:5050"
     MESOS_URL="http://${MESOS_MASTER}"
-elif ( etcdctl get /flight-director/config/mesos-master ); then
+elif ( etcdctl get /flight-director/config/mesos-master >/dev/null 2>&1 ); then
     MESOS_MASTER=$(etcdctl get /flight-director/config/mesos-master)
     MESOS_PROTO=$(etcdctl get /flight-director/config/mesos-master-protocol)
 else
     error "Don't know where mesos master is located"
 fi
-MESOS_URL="${MESOS_PROTO}://${MESOS_MASTER}"
+MESOS_ELB="${MESOS_PROTO}://${MESOS_MASTER}"
 #
 # we need to use the redirect because dc/os dns strangely lags what mesos thinks is master
 #
 #MESOS_MASTER=$(curl -sI ${MESOS_CREDS} ${MESOS_URL}/redirect | grep Location | awk -F'Location: //' '{ print $2}'| awk '{ print $1}')
-MESOS_MASTER=$(curl -sI ${MESOS_CREDS} ${MESOS_URL}/redirect | grep Location | tr -d '\r\n' | sed  's!Location: //\(.*\)!\1!')
+MESOS_MASTER=$(curl -sI ${MESOS_CREDS} ${MESOS_ELB}/redirect | grep Location | tr -d '\r\n' | sed  's!Location: //\(.*\)!\1!')
 MESOS_URL="${MESOS_PROTO}://${MESOS_MASTER}"
 
 
