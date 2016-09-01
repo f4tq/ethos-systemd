@@ -490,8 +490,8 @@ drain_tcp(){
 	    log "Marathon leadership abdicated"
 	fi
     fi
-    if ( $LOCALPATH/../util/schedule_mesos_maintenance.sh ) ; then
-	$LOCALPATH/../util/down_mesos.sh
+    if ( $LOCALPATH/../util/mesos_sched_drain.sh ) ; then
+	$LOCALPATH/../util/mesos_down.sh
     else
 	error "schedule mesos maintenance failed.  host already down? use mesos_status.sh to see"
     fi
