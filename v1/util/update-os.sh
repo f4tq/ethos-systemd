@@ -39,7 +39,9 @@ if [ -e /var/lib/skopos/rebooting ]; then
 	done
 	log "etcd up ..."
 	health_url="http://${LOCAL_IP}:5050/master/redirect"
-	      
+	if ! (ps -wef | grep mesos-master) ; then
+	    systemctl start ${MESOS_UNIT}
+	fi
     elif [ "${NODE_ROLE}" == "worker" ]; then
 	# TODO: ethos mesos slave needs user/password
 	# TODO:  all worker nodes assumed to run mesos-slave???
