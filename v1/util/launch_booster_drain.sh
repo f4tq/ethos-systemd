@@ -12,7 +12,7 @@ source $BINPATH/../lib/drain_helpers.sh
 assert_root
 unit_name=booster-draining-$(cat /etc/machine-id)-$(date +%s).service
 
-json=/tmp/test.json
+json=$tmpdir/test.json
 
 cat <<EOF > $json
 {
