@@ -1,4 +1,4 @@
-#!/usr/bin/bash -x
+#!/usr/bin/bash
 LOCALPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 source $LOCALPATH/../lib/lock_helpers.sh
@@ -9,9 +9,14 @@ on_exit 'rm -rf  "$tmpdir" '
 
 verbose=false
 # tcp connection timeout
-CONN_TIMEOUT=240
+CONN_TIMEOUT=120
 # docker stop -> kill timeout 
 STOP_TIMEOUT=300
+
+if [ "${NODE_ROLE}" == "control" ]; then
+    # be more patient
+    CONN_TIMEOUT=240
+fi
 
 #
 #  A temp directory for cached output
@@ -120,6 +125,10 @@ find_docker_id_by_taskId(){
 	error "Missing taskId in call to find_docker_id_by_taskId"
     fi
     docker_inspect | jq -r --arg taskId "$taskId" '.[] | select(.Config.Env[] | contains($taskId ))| .Id'
+    if [ $? -ne 0 ]; then
+	echo "Error with docker_inspect data: $(docker_inspect)"  >&2
+	cp ${DOCKER_INSPECT} /home/core/docker_inspect_bad-$(date +%s).json
+    fi
 }
 #
 #  Return pid of docker task.  Can be used trace all processes in a docker instance
@@ -173,7 +182,14 @@ find_docker_stanza_by_id(){
 # 
 process_list(){
     pid=$1
-    ps --forest -o pid= $(ps -e --no-header -o pid,ppid|awk -vp=$pid 'function r(s){print s;s=a[s];while(s){sub(",","",s);t=s;sub(",.*","",t);sub("[0-9]+","",s);r(t)}}{a[$2]=a[$2]","$1}END{r(p)}')
+    rez=$(ps --forest -o pid= $(ps -e --no-header -o pid,ppid|awk -vp=$pid 'function r(s){print s;s=a[s];while(s){sub(",","",s);t=s;sub(",.*","",t);sub("[0-9]+","",s);r(t)}}{a[$2]=a[$2]","$1}END{r(p)}' 2>/dev/null))
+    if [ ! -z "$rez" ]; then
+	for i in $rez; do
+	    echo $i
+	done
+    else
+	echo $pid
+    fi
 }
 #
 #  Takes list of pids, finds listening sockets, and converts 0.0.0.0 into a pattern that will match any socket
@@ -351,11 +367,14 @@ show_marathon_docker_pids() {
 # Then make fw rules to block SYN
 #
 generate_marathon_fw_rules() {
+    # ELB health checks are long.  this is very AWS specific and only works if the endpoint is not SSL
+    echo "iptables -A SKOPOS -p tcp -m string --algo bm --string "ELB-HealthChecker" -j DROP"
+
     if [ "${NODE_ROLE}" == "worker" ]; then
 	for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	    docker_id=$(find_docker_id_by_taskId $i)
 	    if $verbose; then
-		echo "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
+		error_log "marathon/mesos_task_id: $i maps to docker_id: ${docker_id}"
 	    fi
 	    get_fw_rules $docker_id | grep -v -E '^\s*$'
 	done
@@ -365,6 +384,8 @@ generate_marathon_fw_rules() {
 		echo iptables -A SKOPOS -p tcp --syn --dport $conn -d 0.0.0.0/0 -j REJECT
 	    done
 	else
+	    # this is suttle different than worker nodes.  docker_ids is all docker instances.
+	    # in the worker case, docker_ids is limited to instances associated with a mesos slave
 	    for i in $(docker_ids); do
 		get_fw_rules $i | grep -v -E '^\s*$' | xargs -n 1 -IXX echo "XX"
 	    done
@@ -374,22 +395,7 @@ generate_marathon_fw_rules() {
 	
 
 create_fw_rules(){
-    
-    if [ "${NODE_ROLE}" == "worker" ]; then
-	generate_marathon_fw_rules | xargs -n 1 -IXX bash -c "XX"
-    elif [ "${NODE_ROLE}" == "control" ] || [ "${NODE_ROLE}" == "proxy" ];then
-	if [ 0 -lt $(systemctl list-units | grep -c "dcos-") ]; then
-	    for conn in $DCOS_CONTROL_PORTS; do
-		iptables -A SKOPOS -p tcp --syn --dport $conn -d 0.0.0.0/0 -j REJECT
-		# ELB health checks are long.  this is very AWS specific and only works if the endpoint is not SSL
-		iptables -A SKOPOS -p tcp --dport $conn -m string --algo bm --string "ELB-HealthChecker" -j REJECT
-	    done
-	else
-	    for i in $(docker_ids); do
-		get_fw_rules $i | grep -v -E '^\s*$' | xargs -n 1 -IXX bash -c "XX"
-	    done
-	fi
-    fi
+    generate_marathon_fw_rules | xargs -n 1 -IXX bash -c "XX"
 }
 
 #
@@ -489,10 +495,11 @@ drain_tcp(){
     else
 	error "schedule mesos maintenance failed.  host already down? use mesos_status.sh to see"
     fi
+    # purely for the logs
     $LOCALPATH/../util/mesos_status.sh
     show_marathon_connections
     
-        # block marathon health checks with iptables
+    # block new connections iptables
     if [ 0 -eq $(sudo iptables -nL -v | grep -c 'Chain SKOPOS') ]; then
 	iptables -t filter -N SKOPOS
 	# we need to go before DOCKER
@@ -500,7 +507,12 @@ drain_tcp(){
 	iptables -t filter -I INPUT -j SKOPOS
     fi
     create_fw_rules
-    
+    if [ "{NODE_ROLE}" == "control" ]; then
+	while (curl -sI ${MESOS_CREDS} ${MESOS_ELB}/redirect | grep Location | tr -d '\r\n' | sed  's!Location: //\(.*\)!\1!' | grep "${LOCAL_IP}"); do
+	    log "Waiting for for ${LOCAL_IP} to relinquish mesos master"
+	    sleep 1
+	done
+    fi
     # stop the slave
     TIMEOUT=$(( SECONDS + CONN_TIMEOUT ))
     log "drain_tcp|Now @ $SECONDS seconds: Timeout @ $TIMEOUT seconds"
@@ -549,7 +561,7 @@ marat(){
 #
 #
 drain_docker() {
-    
+
     # stop all the docker instances
     for i in $(marathon_docker_ids) ; do
 	docker stop ${i}
@@ -576,6 +588,7 @@ drain_docker() {
 	docker kill $j 
     done
     log "drain_docker| All done"
+
 }
 
 #
@@ -614,5 +627,19 @@ drain(){
     # update docker inspect just in case the lock took a while to get
     
     drain_tcp
+    # drain_docker only works on mesos started containers
     drain_docker
+    #
+    # We have to wait to stop drain
+    
+    if [ "${NODE_ROLE}" == "control" ] && [ ! -z "${MESOS_UNIT}" ]; then
+	# we already have mesos/marathon/docker data
+	systemctl stop ${MESOS_UNIT}
+	if [ $? -ne 0 ]; then
+	    exit -2
+	fi
+    else
+	log "Warning: no mesos unit to stop"
+    fi
+
 }
