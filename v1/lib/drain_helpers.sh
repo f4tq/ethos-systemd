@@ -497,6 +497,8 @@ drain_tcp(){
     fi
     # purely for the logs
     $LOCALPATH/../util/mesos_status.sh
+    echo
+    log "Draining connections:"
     show_marathon_connections
     
     # block new connections iptables
