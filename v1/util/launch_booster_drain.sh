@@ -14,6 +14,55 @@ unit_name=booster-draining-$(cat /etc/machine-id)-$(date +%s).service
 
 json=$tmpdir/test.json
 
+
+usage(){
+    if [ ! -z "$1" ];then
+	>&2 echo $1
+    fi
+    cat <<EOF >&2
+
+booster drain script.  Calls and optional url on completion with the MachineID and pass or fail
+      --notify|-n <url>
+      --machineId|-m <fleet valid machine id>  
+ 
+     Environment variables
+        - NOTIFY - Optional. Interpreted as a url.  Called as:
+               curl $NOTIFY $MACHINEID.
+        - MACHINEID  - REQUIRED. default is the contents of /etc/machine-id.  Must be a valid machine id for fleet.  --machineId switch overrides the environment
+   
+EOF
+}
+
+notify=${NOTIFY:-mock}
+machineId=${MACHINEID:-$(cat /etc/machine-id)}
+
+while [[ $# -gt 1 ]]
+do
+    key="$1"
+
+    case $key in
+
+	-n|--notify)
+	    notify="$2"
+	    shift # past argument
+	    ;;
+	-m|--machineId)
+	    machineId="$2"
+	    shift # past argument
+	    ;;
+	*)
+	    # unknown option
+	    usage "Don't understand '$key'"
+	    ;;
+    esac
+    shift # past argument or value
+done
+
+if [ -z "${machineId}" ];then
+    usage "No machine id"
+fi
+
+
 cat <<EOF > $json
 {
     "name": "${unit_name}",
@@ -24,7 +73,7 @@ cat <<EOF > $json
         { "section": "Service", "name": "User", "value": "root"},
         { "section": "Service", "name": "RemainAfterExit", "value": "no"},
         { "section": "Service", "name": "StandardOutput", "value": "journal+console"},
-        { "section": "Service", "name": "ExecStart", "value": "/bin/bash -xc '/home/core/ethos-systemd/v1/util/booster-drain.sh --notify mock'"},
+        { "section": "Service", "name": "ExecStart", "value": "/bin/bash -xc '/home/core/ethos-systemd/v1/util/booster-drain.sh --notify ${notify} --machine-id ${machindId}'"},
         { "section": "X-Fleet", "name": "MachineID", "value": "$(cat /etc/machine-id)"}
     ]
 }
