@@ -1,5 +1,10 @@
 #!/usr/bin/bash
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+source /etc/environment
+source $DIR/../lib/helpers.sh
+
 IMAGE=$(etcdctl get /images/flight-director)
 
 #only set SCALER_ENDPOINT id booster is enabled
@@ -7,6 +12,20 @@ SCALER_ENDPOINT=""
 if [ "$(etcdctl get /booster/config/enabled)" == "1" ] 
 then
   SCALER_ENDPOINT=`etcdctl get /flight-director/config/scaler-endpoint`
+fi
+
+#only set Aqua endpoints for FD if Aqua is enabled
+if [[ "$(etcdctl get /environment/services)" == *"aqua"* ]]
+then
+  AQUA_URL=`etcdctl get /aqua/config/gateway-external`
+  uri_parser $AQUA_URL
+
+  AQUA_PROTOCOL=$uri_schema
+  AQUA_ENDPOINT=$uri_address
+  AQUA_USER=`etcdctl get /aqua/config/user`
+  AQUA_PASSWORD=`etcdctl get /aqua/config/password`
+else
+  AQUA_ENDPOINT=""
 fi
 
 
@@ -42,4 +61,8 @@ fi
   -e FD_ALLOW_MARATHON_UNVERIFIED_TLS=`etcdctl get /flight-director/config/allow-marathon-unverified-tls` \
   -e FD_SCALER_PROTOCOL=`etcdctl get /flight-director/config/scaler-protocol` \
   -e FD_SCALER_ENDPOINT=$SCALER_ENDPOINT \
+  -e FD_AQUA_PROTOCOL=$AQUA_PROTOCOL \
+  -e FD_AQUA_ENDPOINT=$AQUA_ENDPOINT \
+  -e FD_AQUA_USER=$AQUA_USER \
+  -e FD_AQUA_PASSWORD=$AQUA_PASSWORD \
   $IMAGE
