@@ -24,7 +24,7 @@ cat <<EOF > $json
 
         { "section": "Service", "name": "Type", "value": "oneshot"},
         { "section": "Service", "name": "User", "value": "root"},
-        { "section": "Service", "name": "RemainAfterExit", "value": "yes"},
+        { "section": "Service", "name": "RemainAfterExit", "value": "no"},
         { "section": "Service", "name": "StandardOutput", "value": "journal+console"},
         { "section": "Service", "name": "ExecStart", "value": "/usr/bin/touch /var/lib/skopos/needs_reboot"},
         { "section": "X-Fleet", "name": "Global", "value": "true"},
