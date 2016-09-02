@@ -70,7 +70,7 @@ while : ; do
 		iptables -F  SKOPOS
 		touch /var/lib/skopos/booster_drained
 		if [ "$notify" != "mock" ];then
-		    curl -sL $mock?machineId=$machineId
+		    curl -sL $notify?machineId=$machineId
 		fi
 		exit 0
 	    else
