@@ -1,4 +1,4 @@
-#!/usr/bin/bash -x
+#!/usr/bin/bash
 
 #
 # This schedules unit runs on every worker.  It simply triggers an update of the worker tier
@@ -20,15 +20,14 @@ cat <<EOF > $json
     "desiredState": "launched",
     "options": [
         { "section": "Unit", "name": "Description", "value": "Trigger a reboot"},
-        { "section": "Unit", "name": "Requires", "update-os.service"},
-
+        { "section": "Unit", "name": "Requires", , "value":"update-os.service"},
         { "section": "Service", "name": "Type", "value": "oneshot"},
         { "section": "Service", "name": "User", "value": "root"},
         { "section": "Service", "name": "RemainAfterExit", "value": "no"},
         { "section": "Service", "name": "StandardOutput", "value": "journal+console"},
         { "section": "Service", "name": "ExecStart", "value": "/usr/bin/touch /var/lib/skopos/needs_reboot"},
         { "section": "X-Fleet", "name": "Global", "value": "true"},
-        { "section": "X-Fleet", "name": "MachineMetadata", "value": "role=wprker"}
+        { "section": "X-Fleet", "name": "MachineMetadata", "value": "role=worker"}
     ]
 }
 EOF
