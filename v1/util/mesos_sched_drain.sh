@@ -31,14 +31,15 @@ EOF
 
 if (curl -L -H "Content-type: application/json" -X POST -d @$tmpdir/mesos-master.json ${MESOS_CREDS} ${MESOS_URL}/maintenance/schedule 2>/dev/null) ; then
     if  [ ! -z "$(curl -SsL -X GET ${MESOS_CREDS} ${MESOS_URL}/maintenance/status | jq --arg ip ${LOCAL_IP} --arg host $(hostname --fqdn) '.draining_machines[]|select( .id| (.ip ==$ip  and .hostname==$host) )')" ]; then
-	log "successfully scheduled draining"
+	#put success message out on stderr
+	error_log "successfully scheduled draining"
 	exit 0
     else
-	error_log "unable to schedule draining"
+	error "unable to schedule draining"
 
     fi
 else
-    error_log "unable to schedule draining.  Is mesos up?"
+    error  "unable to schedule draining.  Is mesos up?"
 fi
 	    
 

@@ -15,7 +15,8 @@ if [ ! -z "$( curl -SsL ${MESOS_CREDS} ${MESOS_URL}/maintenance/status | jq --ar
 EOF
     if [ 0 -lt $(curl  -Ls -v -H "Content-type: application/json" -X POST -d @$tmpdir/down-host.json  ${MESOS_CREDS} ${MESOS_URL}/machine/down 2>&1 | grep -c 'HTTP.*200.*OK') ] && \
 	   [ ! -z "$( curl -SsL ${MESOS_CREDS} ${MESOS_URL}/maintenance/status | jq --arg ip ${LOCAL_IP} --arg host $(hostname --fqdn) '.down_machines[]|select( .ip ==$ip  and .hostname==$host )')" ]; then
-	log "${LOCAL_IP} is down"
+	# put success message out on stderr
+	error_log "${LOCAL_IP} is down"
 	exit 0
     else
 	error "${LOCAL_IP} unable to schedule drain"

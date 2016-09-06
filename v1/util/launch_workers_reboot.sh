@@ -20,7 +20,7 @@ cat <<EOF > $json
     "desiredState": "launched",
     "options": [
         { "section": "Unit", "name": "Description", "value": "Trigger a reboot"},
-        { "section": "Unit", "name": "Requires", , "value":"update-os.service"},
+        { "section": "Unit", "name": "Requires", "value":"update-os.service"},
         { "section": "Service", "name": "Type", "value": "oneshot"},
         { "section": "Service", "name": "User", "value": "root"},
         { "section": "Service", "name": "RemainAfterExit", "value": "no"},
