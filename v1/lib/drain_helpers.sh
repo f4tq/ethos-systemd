@@ -77,13 +77,28 @@ update_marathon_jobs(){
 # This gets run again after we acquire the lock
 #
 
+# convenience.  if invalid arg, docker causes error.  we need a zero anyways
+docker_alive(){
+    docker inspect -f '{{.State.Pid}}' $1 2> /dev/null 
+    if [ $? -ne 0 ];then
+	echo 0
+    fi
+}
+
 update_docker_inspect(){
     last_inspect=$SECONDS
     mkdir -p ${DOCKER_INSPECT_DIR}
-    for i in $(docker ps -q); do
-	if [ ! -f ${DOCKER_INSPECT_DIR}/$i.json ]; then
-	    # docker inspect returns array of 1 item.  unpeel it
-	    docker inspect $i | jq '.[]'> ${DOCKER_INSPECT_DIR}/$i.json 2>/dev/null
+    # docker ps -q can take over a minute...
+    for i in $(ls /var/lib/docker/containers); do
+	if [ 0 -eq $(docker_alive $i) ]; then
+	    if [ -e ${DOCKER_INSPECT_DIR}/$i.json ]; then
+		rm -f ${DOCKER_INSPECT_DIR}/$i.json
+	    fi
+	else 
+	    if [ ! -f ${DOCKER_INSPECT_DIR}/$i.json ]; then
+		# docker inspect returns array of 1 item.  unpeel it
+		docker inspect $i | jq '.[]'> ${DOCKER_INSPECT_DIR}/$i.json 2>/dev/null
+	    fi
 	fi
     done
     
@@ -253,6 +268,12 @@ get_connections_by_docker_pid(){
 		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E ) 2> /dev/null 
 		else
 		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l ) 2>/dev/null || echo 0
+		fi
+	    else
+		if $verbose; then
+		    echo
+		else
+		    echo 0
 		fi
 	    fi
 	    ;;
@@ -556,13 +577,6 @@ marat(){
   echo $ID
 }
 
-# convenience.  if invalid arg, docker causes error.  we need a zero anyways
-docker_alive(){
-    docker inspect -f '{{.State.Pid}}' $1 2> /dev/null 
-    if [ $? -ne 0 ];then
-	echo 0
-    fi
-}
 #
 # drain_docker
 #
