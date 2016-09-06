@@ -250,9 +250,9 @@ get_connections_by_docker_pid(){
 	    # ethos has a lot of churn so race conditions between `docker ps` and this step exist.  Double check the /proc pid path exists
 	    if [ -e /proc/${task_pid}/net/tcp6 ]; then
 		if $verbose; then
-		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E ) >/dev/null >&2
+		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E ) 2> /dev/null 
 		else
-		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l ) >/dev/null >&2 || echo 0
+		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l ) 2>/dev/null || echo 0
 		fi
 	    fi
 	    ;;
@@ -558,7 +558,7 @@ marat(){
 
 # convenience.  if invalid arg, docker causes error.  we need a zero anyways
 docker_alive(){
-    docker inspect -f '{{.State.Pid}}' $1 > /dev/null >&2
+    docker inspect -f '{{.State.Pid}}' $1 2> /dev/null 
     if [ $? -ne 0 ];then
 	echo 0
     fi
