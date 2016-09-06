@@ -71,7 +71,7 @@ cat <<EOF > $json
         { "section": "Unit", "name": "Description", "value": "Draining Launched by Booster"},
         { "section": "Service", "name": "Type", "value": "oneshot"},
         { "section": "Service", "name": "User", "value": "root"},
-        { "section": "Service", "name": "RemainAfterExit", "value": "no"},
+        { "section": "Service", "name": "RemainAfterExit", "value": "yes"},
         { "section": "Service", "name": "StandardOutput", "value": "journal+console"},
         { "section": "Service", "name": "ExecStart", "value": "/bin/bash -xc '/home/core/ethos-systemd/v1/util/booster-drain.sh --notify ${notify} --machine-id ${machindId}'"},
         { "section": "X-Fleet", "name": "MachineID", "value": "$(cat /etc/machine-id)"}

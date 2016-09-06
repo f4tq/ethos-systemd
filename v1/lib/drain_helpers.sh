@@ -247,10 +247,13 @@ get_connections_by_docker_pid(){
     verbose=$3
     case "$mode" in
 	bridge|default)
-	    if $verbose; then
-		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E
-	    else
-		cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l
+	    # ethos has a lot of churn so race conditions between `docker ps` and this step exist.  Double check the /proc pid path exists
+	    if [ -e /proc/${task_pid}/net/tcp6 ]; then
+		if $verbose; then
+		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E ) >/dev/null >&2
+		else
+		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l ) >/dev/null >&2 || echo 0
+		fi
 	    fi
 	    ;;
 	host)
@@ -384,7 +387,7 @@ generate_marathon_fw_rules() {
 		echo iptables -A SKOPOS -p tcp --syn --dport $conn -d 0.0.0.0/0 -j REJECT
 	    done
 	else
-	    # this is suttle different than worker nodes.  docker_ids is all docker instances.
+	    # subtlely different than worker nodes.  `docker_ids` is all docker instances not just those mapped via marathon/mesos.
 	    # in the worker case, docker_ids is limited to instances associated with a mesos slave
 	    for i in $(docker_ids); do
 		get_fw_rules $i | grep -v -E '^\s*$' | xargs -n 1 -IXX echo "XX"
@@ -552,6 +555,14 @@ marat(){
   done
   echo $ID
 }
+
+# convenience.  if invalid arg, docker causes error.  we need a zero anyways
+docker_alive(){
+    docker inspect -f '{{.State.Pid}}' $1 > /dev/null >&2
+    if [ $? -ne 0 ];then
+	echo 0
+    fi
+}
 #
 # drain_docker
 #
@@ -563,32 +574,50 @@ marat(){
 #
 #
 drain_docker() {
+    if [ ! -z "$(marathon_docker_ids)" ]; then
+	# stop all the docker instances
 
-    # stop all the docker instances
-    for i in $(marathon_docker_ids) ; do
-	docker stop ${i}
-    done
+	for i in $(marathon_docker_ids) ; do
+	    if [ 0 -eq $(docker_alive $i) ]; then
+		echo "$i Already dead "
+	    else
+		docker stop $i
+	    fi
+	done
+	# build an egrep line.  with ethos, there are many non mesos spawned docker containers.  we only target mesos
+	mara_grep="grep -c -e 'xxx' $(docker ps | grep mesos- | awk '{print $1}' | xargs -n 1 -IXX echo ' -e XX ' | tr -d '\r\n')"
+	
+	MAX=$(( SECONDS + STOP_TIMEOUT ))
+	dead=0
+	log "drain_docker |Now @ $SECONDS seconds with Timeout @ $MAX seconds"
+	while (( $SECONDS <  $MAX )); do
+	    # docker ps can be very slow so instead inspect the docker containers directory and ask for pid.  pid=0 is dead
+	    cnt=0
+	    for i in $(ls /var/lib/docker/containers | eval $mara_grep)  X_X_X ; do
+		if [ "$i" == "X_X_X" ];then
+		    break
+		fi
+		if [ 0 -ne $(docker_alive $i) ]; then
+		    cnt=$(( $cnt + 1 ))
+		fi
+	    done
+            if [ $cnt -eq 0 ]; then
+		log "drain_docker all nicely stopped"
+		dead=1
+		break
+            fi
+	    log  "drain_docker| $SECONDS/$MAX. Waiting for $cnt to stop"
+            sleep 10
+	done
 
-    MAX=$(( SECONDS + STOP_TIMEOUT ))
-
-    dead=0
-    log "drain_docker |Now @ $SECONDS seconds with Timeout @ $MAX seconds"
-    while (( $SECONDS <  $MAX )); do
-         cnt=$(docker_ids | egrep -c "$(marat)")
-         if [ $cnt -eq 0 ]; then
-	     log "drain_docker all nicely stopped"
-             dead=1
-             break
-         fi
-         sleep 1
-         log  "drain_docker| $SECONDS/$MAX. Waiting for $cnt to stop"
-    done
-    
-    for j in $(docker_ids | egrep "$(marat)"); do
-	log "drain_docker| Violently killing docker instance $j"
-
-	docker kill $j 
-    done
+	for j in $(ls /var/lib/docker/containers | eval $mara_grep) X_X_X ; do
+	    if [ "$j" == "X_X_X" ];then
+		break
+	    fi
+	    log "drain_docker| Violently killing docker instance $j"
+	    docker kill $j 
+	done
+    fi
     log "drain_docker| All done"
 
 }
