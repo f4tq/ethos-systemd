@@ -7,7 +7,7 @@ tmpdir=${TMPDIR-/tmp}/skopos-$RANDOM-$$
 mkdir -p $tmpdir
 on_exit 'rm -rf  "$tmpdir" '
 
-if [ ! -z "$( curl -SsL ${MESOS_CREDS} ${MESOS_URL}/maintenance/status | jq --arg ip ${LOCAL_IP} --arg host $(hostname --fqdn) '.draining_machines[]|select( .id| (.ip ==$ip  and .hostname==$host) )' 2>/dev/null)" ]; then
+if [ ! -z "$( curl -SsL ${MESOS_CREDS} ${MESOS_ELB}/maintenance/status | jq --arg ip ${LOCAL_IP} --arg host $(hostname --fqdn) '.draining_machines[]|select( .id| (.ip ==$ip  and .hostname==$host) )' 2>/dev/null)" ]; then
     cat <<EOF > $tmpdir/down-host.json
 [
         { "hostname" : "$(hostname --fqdn)", "ip" : "${LOCAL_IP}" }
@@ -21,7 +21,7 @@ EOF
     else
 	error "${LOCAL_IP} unable to schedule drain"
     fi
-elif [ ! -z "$( curl -SsL ${MESOS_CREDS} ${MESOS_URL}/maintenance/status | jq --arg ip ${LOCAL_IP} --arg host $(hostname --fqdn) '.down_machines[]|select( .ip ==$ip  and .hostname==$host )' 2>/dev/null)" ]; then
+elif [ ! -z "$( curl -SsL ${MESOS_CREDS} ${MESOS_ELB}/maintenance/status | jq --arg ip ${LOCAL_IP} --arg host $(hostname --fqdn) '.down_machines[]|select( .ip ==$ip  and .hostname==$host )' 2>/dev/null)" ]; then
     log "${LOCAL_IP} in already down"
     exit 0
 else
