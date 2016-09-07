@@ -75,7 +75,7 @@ drain_worker(){
 	    finish_ok "No docker instances"
 	fi
 	if [ -z "$(  update_slave_info )" ] ;then
-	    finish_ok "No slave info. Is mesos-slave running?"
+	    error "No slave info. Is mesos-slave running?"
 	fi
 	# Getting the slave Id.
 	SLAVE_ID=$( slave_info | jq -r .id)
@@ -83,7 +83,7 @@ drain_worker(){
 	    #
 	    # it is weird to call this ok as there is always a slave it if the slave is running.
 	    # 
-	    finish_ok "No slave id found.  Is the mesos-slave running?"
+	    error  "No slave id found.  Is the mesos-slave running?"
 	fi
 	SLAVE_HOST=$( slave_info | jq -r .hostname)
 	
