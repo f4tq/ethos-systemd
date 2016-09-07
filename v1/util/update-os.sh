@@ -16,7 +16,7 @@ need_reboot(){
 log "Welcome to Skopos"
 if [ "${NODE_ROLE}" != "control" ]; then
     
-    until (etcdctl --endpoints http://${LOCKSMITHCTL_ENDPOINT} ls >/dev/null ) ; do
+    until (etcdctl --endpoints ${LOCKSMITHCTL_ENDPOINT} ls >/dev/null ) ; do
 	log "Waiting for etcd @ ${LOCKSMITHCTL_ENDPOINT}"
 	sleep 2;
     done
