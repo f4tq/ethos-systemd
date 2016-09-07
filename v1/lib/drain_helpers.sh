@@ -32,7 +32,7 @@ DCOS_PROXY_PORTS=""
 DCOS_CONTROL_PORTS="8080 5050"
 
 INSPECT_TIMEOUT=60
-last_inspect=0
+
 
 ##########
 
@@ -86,7 +86,7 @@ docker_alive(){
 }
 
 update_docker_inspect(){
-    last_inspect=$SECONDS
+    echo $SECONDS > $tmpdir/last_inspect
     mkdir -p ${DOCKER_INSPECT_DIR}
     # docker ps -q can take over a minute...
     for i in $(ls /var/lib/docker/containers); do
@@ -124,6 +124,9 @@ docker_ids(){
 # cached file rep. docker inspect can be slow
 #
 docker_inspect(){
+    # docker_inspect is called in a subshell so variables can't be passed
+    last_inspect=0
+    if [ -f $tmpdir/last_inspect ]; then last_inspect=$(cat $tmpdir/last_inspect); fi
     if [ ${last_inspect} -eq 0 ] ||  ((  ( $SECONDS  - ${last_inspect} ) > ${INSPECT_TIMEOUT} )) ; then
 	update_docker_inspect
     else
@@ -598,8 +601,9 @@ drain_docker() {
 		docker stop $i
 	    fi
 	done
-	# build an egrep line.  with ethos, there are many non mesos spawned docker containers.  we only target mesos
-	mara_grep="grep -c -e 'xxx' $(docker ps | grep mesos- | awk '{print $1}' | xargs -n 1 -IXX echo ' -e XX ' | tr -d '\r\n')"
+	# build an egrep line.  with ethos, there are many non mesos spawned docker containers.  we only target mesos. xxx is a dummy to prevent grep
+	
+	mara_grep="grep  -e 'xxx' $(docker ps | grep mesos- | awk '{print $1}' | xargs -n 1 -IXX echo ' -e XX ' | tr -d '\r\n')"
 	
 	MAX=$(( SECONDS + STOP_TIMEOUT ))
 	dead=0
