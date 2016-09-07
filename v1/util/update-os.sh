@@ -13,6 +13,15 @@ need_reboot(){
     test -f /var/lib/skopos/needs_reboot
 }
 
+log "Welcome to Skopos"
+if [ "${NODE_ROLE}" != "control" ]; then
+    
+    until (etcdctl --endpoints http://${LOCKSMITHCTL_ENDPOINT} ls >/dev/null ) ; do
+	log "Waiting for etcd @ ${LOCKSMITHCTL_ENDPOINT}"
+	sleep 2;
+    done
+fi
+
 if [ -e /var/lib/skopos/rebooting ]; then
     
     health_url=""
