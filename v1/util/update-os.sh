@@ -4,6 +4,8 @@ LOCALPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $LOCALPATH
 
 source $LOCALPATH/../lib/lock_helpers.sh
+source $LOCALPATH/../lib/mesos_helpers.sh
+
 on_exit "log 'Goodbye...'"
 assert_root
 
@@ -67,7 +69,9 @@ if [ -e /var/lib/skopos/rebooting ]; then
 
     log "mesos/up Unlocking cluster reboot lock"
     # bring ourselves up.
-    $LOCALPATH/mesos_up.sh
+    if ${USE_MESOS_API}; then
+	$LOCALPATH/mesos_up.sh
+    fi
     unlock_reboot
     if [ $? -ne 0 ];then
 	log "update_os| This is AWKWARD.  After rebooting,we can't unlock_reboot ( which we held ).  Did someone unlock it? : proceeding as if and ignoring"
@@ -104,8 +108,11 @@ while : ; do
 		    touch /var/lib/skopos/rebooting
 		    shutdown -r now
 		else
-		    log "update-os| Can't drain.  Patiently waiting."
-		    sleep 1
+		    log "update-os| Can't drain.  host lock's state: '$(host_state)'"
+		    set -x
+		    unlock_reboot
+		    set +x
+		    break
 		fi
 	    done
 	else
@@ -113,7 +120,7 @@ while : ; do
 	    sleep 1
 	fi
     fi
-    sleep 60
+    sleep 20
 done
 
    

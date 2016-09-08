@@ -70,12 +70,15 @@ while : ; do
 		iptables -F  SKOPOS
 		touch /var/lib/skopos/booster_drained
 		if [ "$notify" != "mock" ];then
+		    set -x 
 		    curl -sL $notify?machineId=$machineId
+		    set +x
 		fi
 		exit 0
 	    else
-		log "Can't drain.  Patiently waiting."
-		sleep 1
+		log "Can't drain.  host_state: '$(host_state)'."
+		unlock_booster
+		break
 	    fi
 	done
     else

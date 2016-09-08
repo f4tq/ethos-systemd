@@ -2,6 +2,7 @@
 LOCALPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 source $LOCALPATH/../lib/lock_helpers.sh
+source $LOCALPATH/../lib/mesos_helpers.sh
 
 tmpdir=${TMPDIR-/tmp}/skopos-$RANDOM-$$
 mkdir -p $tmpdir
@@ -268,11 +269,12 @@ get_connections_by_docker_pid(){
 	    # ethos has a lot of churn so race conditions between `docker ps` and this step exist.  Double check the /proc pid path exists
 	    if [ -e /proc/${task_pid}/net/tcp6 ]; then
 		if $verbose; then
-		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E ) 2> /dev/null 
+		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E ) 2> /dev/null  || echo
 		else
 		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l ) 2>/dev/null || echo 0
 		fi
 	    else
+		# with ethos it seems, there is a lot of instance churn.  Our process can just disappear so handle that here
 		if $verbose; then
 		    echo
 		else
@@ -297,14 +299,26 @@ get_connections_by_docker_pid(){
 	    #
 	    CNT="-c"
 	    if $verbose ;  then
-		ss -tn4 -o state established   | grep  -E $(listening_patterns ${task_pid}) |awk '{ print substr($0, index($0,$3)) }'
+		ss -tn4 -o state established   | grep  -E $(listening_patterns ${task_pid}) |awk '{ print substr($0, index($0,$3)) }' 2>/dev/null 
+		if [ $? -ne 0 ]; then
+		    echo
+		fi
 	    else
-		ss -tn4 -o state established   | grep -c -E $(listening_patterns ${task_pid})
+		
+		ss -tn4 -o state established   | grep -c -E -e X_X_X $(listening_patterns ${task_pid})  2>/dev/null 
+		if [ $? -ne 0 ] ; then
+		    echo 0
+		fi
 	    fi
 
 	    ;;
 	*)
-	    error "Unknown network type: $mode  This can happen EASILY with docker as user can define their own network types/bridges etc/"
+	    error_log "Unknown network type: $mode.  docker pid ${task_pid}  This can happen EASILY with docker as user can define their own network types/bridges etc/"
+	    if $verbose ; then
+		echo
+	    else
+		echo 0
+	    fi
     esac
 }
 
@@ -325,7 +339,10 @@ get_connections_by_task_id(){
     fi
     task_pid=$(find_docker_pid_by_taskId $taskId)
     mode=$(find_docker_networkmode_by_taskId $taskId)
+    error_log "get_connection_by_task_Id: ${taskId} docker pid: ${task_pid} network mode: ${mode} "
+    set -x
     get_connections_by_docker_pid $task_pid $mode $verbose
+    set +x 
 }
 
 #
@@ -358,7 +375,8 @@ slave_info(){
 #
 find_all_mesos_docker_instances(){
     # Mesos creates docker instances for potentially many frameworks.  Marathon is just one
-    docker_inspect | jq '[.[] | select( .Name | startswith("/mesos-")) | { name: .Name, id: .Id}]'
+    docker_inspect | jq -r '[.[] | select( .Config.Env[]|contains("MESOS_CONTAINER_NAME"))|{ name: .Name, id: .Id}]'
+#    docker_inspect | jq    '[.[] | select( .Name | startswith("/mesos-")) | { name: .Name, id: .Id}]'
 }
 
 #
@@ -458,6 +476,7 @@ get_connection_count(){
 	for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
 	    jj=$(get_connections_by_task_id $i $verbose)
 	    cnt=$(( $cnt + $jj ))
+	    error_log "get_connection_count: task_id $i has $jj connections"
 	done
 	echo $cnt
     else
@@ -505,25 +524,12 @@ just_ports() {
 # The SKOPOS chain is flushed on exit
 #
 drain_tcp(){
-    # generate and run the rules
-    if [ "${NODE_ROLE}" == "control" ] ;then
-	if (curl -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader | jq -r '.leader'| grep ${LOCAL_IP}); then
-	    curl -X DELETE -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader
-	     
-	    while (curl -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader | jq -r '.leader'| grep ${LOCAL_IP}); do
-		log "Waiting for this node to relinquish marathon leadership"
-		sleep 1
-	    done
-	    log "Marathon leadership abdicated"
-	fi
-    fi
-    if ( $LOCALPATH/../util/mesos_sched_drain.sh ) ; then
-	$LOCALPATH/../util/mesos_down.sh
-    else
-	error "schedule mesos maintenance failed.  host already down? use mesos_status.sh to see"
-    fi
+
     # purely for the logs
-    $LOCALPATH/../util/mesos_status.sh
+    if ${USE_MESOS_API}; then
+	log "Using mesos_status"
+	$LOCALPATH/../util/mesos_status.sh
+    fi
     echo
     log "Draining connections:"
     show_marathon_connections
@@ -598,7 +604,11 @@ drain_docker() {
 	    if [ 0 -eq $(docker_alive $i) ]; then
 		echo "$i Already dead "
 	    else
+		set +x
 		docker stop $i
+		set -x
+		error_log "Sent stop to $(docker inspect -f '{{.Name}}' $i ) - $(docker inspect -f '{{.Config.Image}}' $i) logs:"
+		docker logs $i | tail -10 >&2
 	    fi
 	done
 	# build an egrep line.  with ethos, there are many non mesos spawned docker containers.  we only target mesos. xxx is a dummy to prevent grep
@@ -632,7 +642,7 @@ drain_docker() {
 	    if [ "$j" == "X_X_X" ];then
 		break
 	    fi
-	    log "drain_docker| Violently killing docker instance $j"
+	    log "drain_docker| Violently killing docker container $(docker inspect -f '{{.Name}}' $j) - $(docker inspect -f '{{.Config.Image}}' $j) "
 	    docker kill $j 
 	done
     fi
@@ -663,23 +673,71 @@ drain(){
     on_exit 'unlock_host "$token"'
     log "-------Starting skopos drain-------"
     log "$MACHINEID got drain lock with lock token \"$token\""
-    
-    if [ "${NODE_ROLE}" == "worker" ] && [ ! -z "${MESOS_UNIT}" ]; then
-	# we already have mesos/marathon/docker data
-	systemctl stop ${MESOS_UNIT}
-	if [ $? -ne 0 ]; then
-	    exit -2
+
+    if [ "${NODE_ROLE}" == "control" ] ;then
+	# stop this node from being the marathon leader if it is and wait until we get that from the elb
+
+	if (curl -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader | jq -r '.leader'| grep ${LOCAL_IP}); then
+	    curl -X DELETE -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader
+	     
+	    while (curl -SsL ${MARATHON_CREDS} http://${MARATHON_ENDPOINT}/v2/leader | jq -r '.leader'| grep ${LOCAL_IP}); do
+		log "Waiting for this node to relinquish marathon leadership"
+		sleep 1
+	    done
+	    log "Marathon leadership abdicated"
+	fi
+    fi
+    # schedule a drain
+    set -x
+    log "USE_MESOS_API? : ${USE_MESOS_API}"
+
+	#
+	# if we're not using the mesos api, we stop the slave which leaves docker instances going
+	# before 0.28.1, if you use the API, the slave stops and takes all the docker instances with it
+	#
+
+    if ${USE_MESOS_API} ; then
+	if ( $LOCALPATH/../util/mesos_sched_drain.sh ) ; then
+	    echo "Mesos drain successfully initiated" 
+	else
+	    # we need to exit with an error
+	    error "schedule mesos maintenance failed.  host already down? use mesos_status.sh to see"
 	fi
     else
-	log "Warning: no mesos unit to stop"
+	log "Skipping Mesos Schedule drain: using old mesos version ${MESOS_VERSION}"
+	if [ "${NODE_ROLE}" == "worker" ] && [ ! -z "${MESOS_UNIT}" ]; then
+	    # we already have mesos/marathon/docker data
+	    systemctl stop ${MESOS_UNIT}
+	    if [ $? -ne 0 ]; then
+		exit -2
+	    fi
+	else
+	    log "Warning: no mesos unit to stop"
+	fi
     fi
+    set +x
+							     
     # update docker inspect just in case the lock took a while to get
     
     drain_tcp
     # drain_docker only works on mesos started containers
     drain_docker
-    #
-    # We have to wait to stop drain
+    
+    # if a newer version of mesos, then use mesos api
+
+    set -x 
+    if ${USE_MESOS_API} ;then
+	$LOCALPATH/../util/mesos_down.sh
+	if [ "${NODE_ROLE}" == "worker" ] && [ ! -z "${MESOS_UNIT}" ]; then
+	    # we already have mesos/marathon/docker data
+	    systemctl stop ${MESOS_UNIT}
+	    if [ $? -ne 0 ]; then
+		exit -2
+	    fi
+	else
+	    log "Warning: no mesos unit to stop"
+	fi
+    fi
     
     if [ "${NODE_ROLE}" == "control" ] && [ ! -z "${MESOS_UNIT}" ]; then
 	# we already have mesos/marathon/docker data
@@ -690,5 +748,5 @@ drain(){
     else
 	log "Warning: no mesos unit to stop"
     fi
-
+    set +x
 }
