@@ -36,7 +36,12 @@ MESOS_ELB="${MESOS_PROTO}://${MESOS_MASTER}"
 #
 #MESOS_MASTER=$(curl -sI ${MESOS_CREDS} ${MESOS_URL}/redirect | grep Location | awk -F'Location: //' '{ print $2}'| awk '{ print $1}')
 
-MESOS_MASTER=$(curl -svI ${MESOS_CREDS} ${MESOS_ELB}/redirect | grep Location | tr -d '\r\n' | sed  's!Location: //\(.*\)!\1!')
+# true master comes from redirect.  anything else is bunk
+MESOS_MASTER=""
+while [ -z "${MESOS_MASTER}" ]; do
+    MESOS_MASTER=$(curl -svI ${MESOS_CREDS} ${MESOS_ELB}/redirect | grep Location | tr -d '\r\n' | sed  's!Location: //\(.*\)!\1!')
+    sleep 1
+done
 MESOS_URL="${MESOS_PROTO}://${MESOS_MASTER}"
 
 
