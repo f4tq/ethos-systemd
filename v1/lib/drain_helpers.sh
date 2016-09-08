@@ -341,7 +341,15 @@ get_connections_by_task_id(){
     mode=$(find_docker_networkmode_by_taskId $taskId)
     error_log "get_connection_by_task_Id: ${taskId} docker pid: ${task_pid} network mode: ${mode} "
     # set -x
-    get_connections_by_docker_pid $task_pid $mode $verbose
+    if [ -z "${task_pid}" -o -z "${mode}" ]; then
+	if $verbose; then
+	    echo
+	else
+	    echo 0
+	fi
+    else
+	get_connections_by_docker_pid $task_pid $mode $verbose
+    fi
     # set +x 
 }
 
