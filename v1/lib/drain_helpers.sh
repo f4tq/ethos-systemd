@@ -340,9 +340,9 @@ get_connections_by_task_id(){
     task_pid=$(find_docker_pid_by_taskId $taskId)
     mode=$(find_docker_networkmode_by_taskId $taskId)
     error_log "get_connection_by_task_Id: ${taskId} docker pid: ${task_pid} network mode: ${mode} "
-    set -x
+    # set -x
     get_connections_by_docker_pid $task_pid $mode $verbose
-    set +x 
+    # set +x 
 }
 
 #
@@ -376,7 +376,6 @@ slave_info(){
 find_all_mesos_docker_instances(){
     # Mesos creates docker instances for potentially many frameworks.  Marathon is just one
     docker_inspect | jq -r '[.[] | select( .Config.Env[]|contains("MESOS_CONTAINER_NAME"))|{ name: .Name, id: .Id}]'
-#    docker_inspect | jq    '[.[] | select( .Name | startswith("/mesos-")) | { name: .Name, id: .Id}]'
 }
 
 #
@@ -608,7 +607,7 @@ drain_docker() {
 		docker stop $i
 		set -x
 		error_log "Sent stop to $(docker inspect -f '{{.Name}}' $i ) - $(docker inspect -f '{{.Config.Image}}' $i) logs:"
-		docker logs $i | tail -10 >&2
+		docker logs $i 2>&1 | tail -5 >&2
 	    fi
 	done
 	# build an egrep line.  with ethos, there are many non mesos spawned docker containers.  we only target mesos. xxx is a dummy to prevent grep

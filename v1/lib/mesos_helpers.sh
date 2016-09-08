@@ -3,8 +3,6 @@ MESOSLIB="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 source $MESOSLIB/vercomp.sh
 
-set -x
-
 MESOS_UNIT=$(systemctl list-units | egrep 'dcos-mesos-slave|mesos-slave@|dcos-mesos-master|mesos-master'| awk '{ print $1}' )
 
 MESOS_USER="$(etcdctl get /mesos/config/username  2>/dev/null)"
@@ -30,7 +28,6 @@ else
 fi
 MESOS_ELB="${MESOS_PROTO}://${MESOS_MASTER}"
 
-
 #
 # we need to use the redirect because dc/os dns strangely lags what mesos thinks is master
 #
@@ -48,14 +45,12 @@ MESOS_URL="${MESOS_PROTO}://${MESOS_MASTER}"
 MESOS_VERSION="$(curl -SsL -X GET ${MESOS_CREDS} ${MESOS_URL}/version | jq -r '.version')"
 
 USE_MESOS_API=true
-set +x
+
 vercomp ${MESOS_VERSION} 0.28.0
-set -x
+
 if [ $? -ne 1  ]; then
     USE_MESOS_API=false
 fi
-
-
 
 # Get marathon info from etcd
 MARATHON_USER="$(etcdctl get /marathon/config/username)"
@@ -67,5 +62,5 @@ if [ ! -z "${MARATHON_USER}" -a ! -z "${MARATHON_PASSWORD}" ];then
    MARATHON_CREDS="-u ${MARATHON_USER}:${MARATHON_PASSWORD}"
 fi
 
-set +x 
+
 
