@@ -30,6 +30,7 @@ As docker provides a means to create user defined networks that are isolated, th
 ### Standard components
 - etcd
 - fleet
+
 ### Skopos components
 Skopos constitutes a locking system and a lot of scripts to handle the draining process.
 #### Docker images
