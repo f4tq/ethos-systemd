@@ -1,8 +1,8 @@
 #!/usr/bin/bash 
 
 #
-# This schedules a unit
-#
+# This schedules a booster draining unit
+# This units action include removing the unit from systemd 
 #
 
 BINPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -74,7 +74,7 @@ cat <<EOF > $json
         { "section": "Service", "name": "User", "value": "root"},
         { "section": "Service", "name": "RemainAfterExit", "value": "yes"},
         { "section": "Service", "name": "StandardOutput", "value": "journal+console"},
-        { "section": "Service", "name": "ExecStart", "value": "/bin/bash -xc '/home/core/ethos-systemd/v1/util/booster-drain.sh --notify ${notify} --machine-id ${machindId} ; touch /var/lib/skopos/${unit_name}.done '"},
+        { "section": "Service", "name": "ExecStart", "value": "/bin/bash -xc '/home/core/ethos-systemd/v1/util/booster-drain.sh --notify ${notify} --machine-id ${machindId} ; touch /var/lib/skopos/${unit_name}.done; /usr/bin/fleetctl destroy ${unit_name} '"},
         { "section": "X-Fleet", "name": "MachineID", "value": "$(cat /etc/machine-id)"}
     ]
 }
@@ -99,8 +99,9 @@ sudo curl -vs --unix-socket /var/run/fleet.sock  http:/fleet/fleet/v1/units  | j
  - Find booster units
 sudo curl -vs --unix-socket /var/run/fleet.sock  http:/fleet/fleet/v1/units  | jq '.units[]|select(.name | contains("booster-draining"))|.'
 
- - logs
-sudo journalctl -u ${unit_name} 
+ - logs are transient as the unit is removed as part of ExecStart  
+
+sudo journalctl --no-pager | grep  "${unit_name}"
 
 # Cleanup
 

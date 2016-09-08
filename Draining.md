@@ -56,30 +56,55 @@ All scripts in skopos are placed in [ethos-systemd](http://github.com/f4tq/ethos
 Many scripts source [drain_helpers](http://github.com/f4tq/ethos-systemd/v1/lib/drain_helpers.sh) but all source [lock_helpers](http://github.com/f4tq/ethos-systemd/v1/lib/lock_helpers.sh).
 
 ##### [update-os.sh](http://github.com/f4tq/ethos-systemd/v1/util/update-os.sh)
-Called by the systemd update-os.service unit.  It looks for updates then drains the host with the intention of rebooting it.  It calls `drain.sh`.
+ - Single run fleet units that trigger the update-os.sh on each node.  Currently, that amounts to touching /var/lib/skopos/needs_reboot
+ 
+ - Triggers on fleet, systemd unit per worker node
+   ```
+   fleetctl list-machines | grep role=worker| awk '{print $1}'
+   ```
+ - Fleet global units don't work since they're hard to destroy.  In the face of auto-scaling, they can have the unintended consequence of starting a reboot on a new node
+ 
+ - Each unit's ExecStart destroys the fleet unit that it's part of as it's last action
+ 
+ - The units leave no trace except on purpose.
+ 
 ##### [drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/drain.sh)
 Drives the draining process for control,  proxy, and worker tiers.  It uses all locking primitives, schedules mesos maintenance,  uses marathon api, docker and uses iptables to drain connections.
-##### [launch-workers-reboot.sh](http://github.com/f4tq/ethos-systemd/v1/util/launch-booster-drain.sh)
+
+##### [launch_workers_reboot.sh](http://github.com/f4tq/ethos-systemd/v1/util/launch-booster-drain.sh)
 Creates a dynamic `oneshot` fleet unit targeting all worker nodes.  In this iteration, it simply touches `/var/lib/skopos/needs_reboot` on all worker nodes.
-##### [launch-booster-drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/launch-booster-drain.sh)
-Creates a pure oneshot fleet unit to drive booster draining using only curl, the fleet socket (`/var/run/fleet.socket`) and the value CoreOS machine id (`/etc/machine-id`).
-The created unit targets only the machine-id it's created with.
-The script interprets environment variables:
--  `NOTIFY`
--  `MACHINEID`
-It also takes command line options:
- `--notify`
-	   - default: mock
-	    `--machine-id`
-		  - default: `cat /etc/machine-id`
+
+##### [launch_booster_drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/launch-booster-drain.sh)
+- Creates a pure oneshot fleet unit to drive booster draining using only curl, the fleet socket (`/var/run/fleet.socket`) and the value CoreOS machine id (`/etc/machine-id`).
+- The created unit targets only the machine-id it's created with.  It explicitely destroys the fleet unit (i.e. itself) it creates via ExecStart 
+- The script understands both cli switches and environment variables:
+   - Environment variables
+      -  `NOTIFY`
+      -  `MACHINEID`
+   - Command line switches
+
+    `--notify`
+	   - default: 'mock' is a no-op
+    `--machine-id`
+           - default: `cat /etc/machine-id`
 
 The fleet unit invokes [booster-drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/booster-drain.sh)
-##### Example use
+
+##### Examples
+
+- Via docker
+   - Passing Environment, Mounting /var/run/fleet.socket
+   
 To satisfy this script, a docker image would include this script then be run  like this:
 ```
 docker run -e MACHINEID=`cat /etc/machine-id` -v /var/run/fleet.socket:/var/run/fleet.socket  adobe-platform/booster
 # /usr/local/bin/launch-booster-drain.sh
 ```
+- From any ethos node targets the node its run.
+```
+sudo ethos-systemd/v1/util/launch_booster_drain.sh --notify http://www.google.com
+```
+##### From any ethos
 
 ####  [booster-drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/booster-drain.sh)
 The target of the fleet-unit created by  [launch-booster-drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/launch-booster-drain.sh).
