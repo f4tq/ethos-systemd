@@ -21,11 +21,12 @@ cat <<EOF > $json
     "options": [
         { "section": "Unit", "name": "Description", "value": "Trigger a reboot"},
         { "section": "Unit", "name": "Requires", "value":"update-os.service"},
+        { "section": "Unit", "name": "ConditionPathExists", "value":"!/var/lib/skopos/${unit_name}.done"},
         { "section": "Service", "name": "Type", "value": "oneshot"},
         { "section": "Service", "name": "User", "value": "root"},
         { "section": "Service", "name": "RemainAfterExit", "value": "no"},
         { "section": "Service", "name": "StandardOutput", "value": "journal+console"},
-        { "section": "Service", "name": "ExecStart", "value": "/usr/bin/touch /var/lib/skopos/needs_reboot"},
+        { "section": "Service", "name": "ExecStart", "value": "/bin/bash -c 'set -x; /usr/bin/touch /var/lib/skopos/needs_reboot; touch /var/lib/skopos/${unit_name}.done'"},
         { "section": "X-Fleet", "name": "Global", "value": "true"},
         { "section": "X-Fleet", "name": "MachineMetadata", "value": "role=worker"}
     ]
