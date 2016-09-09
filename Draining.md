@@ -1,6 +1,7 @@
 # Skopos
-Skopos constitutes the orderly draining and rebooting of CoreOS worker nodes with the goal of no disruption to the Mesos created *docker* container instances running on them & balanced (meaning at least 2 instances) running on *different* nodes within the balancer space.
-It is highly recommended that `[[ hostname UNIQUE ]]` marathon constraint with instance count of at least 2 be used for effective use of this PR. 
+Skopos constitutes the orderly draining and rebooting of CoreOS worker nodes with the goal of no disruption to the Mesos created *docker* instances running on them.  To be effective, the app instances must balanced such that at least 2 instances are running on *different* nodes within the balancer space.
+
+> The marathon constraint  `[[ hostname UNIQUE ]]`, with instance count of at least 2, should be used for effective use of this PR. 
 
 As docker provides a means to create user defined networks that can be wholey isolated, this project specifically targets docker instances running with *bridged* and *host* networks - as defined by docker.
 
@@ -21,9 +22,9 @@ As docker provides a means to create user defined networks that can be wholey is
 
 > Due to mesos 0.27 maintenance API issues, the graceful shutdown (full draining) is unsupported in this release.  However orderly draining of the proxy and control tiers is supported
 
-- `Booster draining` resulting from scale down activity is an end of life task for the host
-- Inbounds connections to mesos instantiated apps are targeted by this process for tapering and elimination. 
-- Outbound connections are the responsibilty of the app instance.  However, this PR process accomodates that shutdown by sending SIGTERM (via docker stop) then waits 300 seconds before sending SIGKILL (via docker kill).
+- Scale down operations supported (booster draining) are an end of life task for the host.
+- Inbounds connections to mesos, mediated by a balancer with a least 2 instances running on different nodes, are supported by this process for tapering and elimination. 
+- Outbound connections are the responsibilty of the app instance.  However, the drain process accommodates that shutdown by sending SIGTERM (via docker stop) then waits 300 seconds before sending SIGKILL (via docker kill).
 
 > marathon-lb supports docker instance labeling that, in the future, be used to control the time between `SIGTERM` and `SIGKILL`
 
@@ -49,6 +50,7 @@ core@coreos:/home/core $ sudo ethos-systemd/v1/util/launch_worker_reboot.sh
 ```
 core@coreos:/home/core $ sudo ethos-systemd/v1/util/launch_booster_drain.sh
 ```
+For cluster wide control, use ansible and see `Running` below
 
 ## Components
 ### Standard components
@@ -77,10 +79,10 @@ Skopos constitutes a locking system and a lot of scripts to handle the draining 
 
 
 #### Scripts
-All scripts in skopos are placed in [ethos-systemd](http://github.com/f4tq/ethos-systemd).
-Many scripts source [drain_helpers](http://github.com/f4tq/ethos-systemd/v1/lib/drain_helpers.sh) but all source [lock_helpers](http://github.com/f4tq/ethos-systemd/v1/lib/lock_helpers.sh).
+All scripts in skopos are placed in [ethos-systemd](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util).
+Many scripts source [drain_helpers](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/lib/drain_helpers.sh) but all source [lock_helpers](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/lib/lock_helpers.sh).
 
-##### [update-os.sh](http://github.com/f4tq/ethos-systemd/v1/util/update-os.sh)
+##### [update-os.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/update-os.sh)
  - Single run fleet units that trigger the update-os.sh on each node.  Currently, that amounts to touching /var/lib/skopos/needs_reboot
  
  - Triggers on fleet, systemd unit per worker node
@@ -93,13 +95,13 @@ Many scripts source [drain_helpers](http://github.com/f4tq/ethos-systemd/v1/lib/
  
  - The units leave no trace except on purpose.
  
-##### [drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/drain.sh)
+##### [drain.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/drain.sh)
 Drives the draining process for control,  proxy, and worker tiers.  It uses all locking primitives, schedules mesos maintenance,  uses marathon api, docker and uses iptables to drain connections.
 
-##### [launch_workers_reboot.sh](http://github.com/f4tq/ethos-systemd/v1/util/launch-booster-drain.sh)
+##### [launch_workers_reboot.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/launch_booster_drain.sh)
 Creates a dynamic `oneshot` fleet unit targeting all worker nodes.  In this iteration, it simply touches `/var/lib/skopos/needs_reboot` on all worker nodes.
 
-##### [launch_booster_drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/launch-booster-drain.sh)
+##### [launch_booster_drain.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/launch_booster_drain.sh)
 - Creates a pure oneshot fleet unit to drive booster draining using only curl, the fleet socket (`/var/run/fleet.socket`) and the value CoreOS machine id (`/etc/machine-id`).
 - The created unit targets only the machine-id it's created with.  It explicitely destroys the fleet unit (i.e. itself) it creates via ExecStart 
 - The script understands both cli switches and environment variables:
@@ -113,7 +115,7 @@ Creates a dynamic `oneshot` fleet unit targeting all worker nodes.  In this iter
     `--machine-id`
            - default: `cat /etc/machine-id`
 
-The fleet unit invokes [booster-drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/booster-drain.sh)
+The fleet unit invokes [booster-drain.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/booster-drain.sh)
 
 ##### Examples
 
@@ -123,7 +125,7 @@ The fleet unit invokes [booster-drain.sh](http://github.com/f4tq/ethos-systemd/v
 To satisfy this script, a docker image would include this script then be run  like this:
 ```
 docker run -e MACHINEID=`cat /etc/machine-id` -v /var/run/fleet.socket:/var/run/fleet.socket  adobe-platform/booster
-# /usr/local/bin/launch-booster-drain.sh
+# /usr/local/bin/launch_booster_drain.sh
 ```
 - From any ethos node targets the node its run.
 ```
@@ -131,29 +133,29 @@ sudo ethos-systemd/v1/util/launch_booster_drain.sh --notify http://www.google.co
 ```
 ##### From any ethos
 
-####  [booster-drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/booster-drain.sh)
-The target of the fleet-unit created by  [launch-booster-drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/launch-booster-drain.sh).
+####  [booster-drain.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/booster-drain.sh)
+The target of the fleet-unit created by  [launch_booster_drain.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/launch_booster_drain.sh).
 
 It acquires the cluster-wide, tier specific `booster` lock.  It the then calls `drain.sh` with 'BOOSTER' (used with the host lock) and drives the drain.
 If the `--notify` is used,  and is not `mock` then the url is invoked with the machine-id on completion.
-####  [lockctl.sh](http://github.com/f4tq/ethos-systemd/v1/util/lockctl.sh)
+####  [lockctl.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/lockctl.sh)
 Provides a cli for locking, unlocking, state retrieval for host and cluster wide locks.
 #### Mesos API related
 These scripts are used to schedule downtime for mesos master & slaves from the perspective of the node it's executed on.  It determines the 'leader', forms the JSON with the node's context and performs the action.
-##### [mesos_sched_drain.sh](http://github.com/f4tq/ethos-systemd/v1/util/mesos_sched_drain.sh)
-#####[mesos_down.sh](http://github.com/f4tq/ethos-systemd/v1/util/mesos_down.sh)
-#####[mesos_up.sh](http://github.com/f4tq/ethos-systemd/v1/util/mesos_up.sh)
-#####[mesos_status.sh](http://github.com/f4tq/ethos-systemd/v1/util/mesos_status.sh)
+##### [mesos_sched_drain.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/mesos_sched_drain.sh)
+#####[mesos_down.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/mesos_down.sh)
+#####[mesos_up.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/mesos_up.sh)
+#####[mesos_status.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/mesos_status.sh)
 
 #### Support scripts
 ##### Helpers
-###### [lock_helpers.sh](http://github.com/f4tq/ethos-systemd/lock_helpers.sh)
+###### [lock_helpers.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/lib/lock_helpers.sh)
  These bash helpers provide wrappers around the `etcd-locks` docker image.
   They also establish an `exit` hook that provides exit chaining used extensively to clear iptables, free locks, free temp files, etc in case of unexpected exits.
-###### [drain_helpers.sh](http://github.com/f4tq/ethos-systemd/drain_helpers.sh)
+###### [drain_helpers.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/lib/drain_helpers.sh)
   Contains script for draining tcp and docker instances.
 
-####[read_tcp6](http://github.com/f4tq/ethos-systemd/v1/util/read_tcp6.sh)
+####[read_tcp6](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/lib/read_tcp6.sh)
 This script decodes established connections for docker instances running in bridged network mode.  Such connections are not reported by `netstat` as they are routed by iptables using `PREROUTING` and `FORWARDING` chains in the `nat` and `filter` tables respectively.
 
 To use this with docker, you get the pid and process tree of the image report via `docker inspect` then `cat /proc/$pid/net/tcp6` to this script.
@@ -162,7 +164,7 @@ To use this with docker, you get the pid and process tree of the image report vi
 ## Process
 This section gives an overview of important processes.
 
-### [update-os.sh](github.com/adobe-platform/v1/util/update-os.sh)
+### [update-os.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/update-os.sh)
 The main process mediates system reboots primarily due to CoreOS updates.
 
 - If the current node holds the cluster-wide reboot lock on service startup:
@@ -176,12 +178,12 @@ The main process mediates system reboots primarily due to CoreOS updates.
 - On reboot trigger occurance
    	- currently, the presence of the file `/var/lib/skopos/needs_reboot` 
 - wait forever for cluster-wide `reboot lock` for tier
-- invoke [drain script](http://github.com/adobe-platform/ethos-system/util/drain.sh) with token `REBOOT`
+- invoke [drain script](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/drain.sh) with token `REBOOT`
 - on success, reboot *holding* drain lock
 
 > Note: it is *very* important that the node re-establish itself *after* reboot *before* unlock reboot.
 
-### [drain.sh](http://github.com/adobe-platform/ethos-system/util/drain.sh) script
+### [drain.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/drain.sh) script
 CLI with mulitple options available for standalone use.  It's primary callers are update-os.sh and booster-drain.sh.
 
 #### options
@@ -302,7 +304,57 @@ ansible coreos_workers -i $INVENTORY   -m raw -a 'bash -c "echo \"Reboot Lock ho
 ```
 ansible coreos_workers -i $INVENTORY  -m raw -a 'bash -c "journalctl -u update-os.service --no-pager  | tail -25 "' 
 ```
+# Running
+Ansible makes that task of managing an ethos cluster much easier. Controlling the drain process, whether due to updates requiring a reboot or booster drain for scale down, are no exception.
+## Kick of an orderly (drained) worker tier reboot
+```
+fortescu@vagrant $ ansible coreos_control -i $INVENTORY  -m raw -a 'bash -c "LOCALIP=$(curl -sS http://169.254.169.254/latest/meta-data/local-ipv4);  ( etcdctl member list  | grep \$LOCALIP | grep -q isLeader=true ) && ethos-systemd/v1/util/launch_workers_reboot.sh" ' -s
+```
+## Watch the logs across the cluster targeting workers.
 
+Here is an active, healthy drain with one node complete, one in progress, and 3 waiting for the reboot lock
+```
+ortescu@vagrant:~/ethos-projects/f4tq-aug2016-drain$ ansible coreos_workers -i $INVENTORY  -m raw -a 'bash -c "journalctl -u update-os.service --no-pager  | tail -5 "'
+10.74.131.125 | SUCCESS | rc=0 >>
+Sep 09 05:45:10 ip-10-74-131-125.ec2.internal update-os.sh[18345]: [1473399910][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:33 ip-10-74-131-125.ec2.internal update-os.sh[18345]: Error locking: semaphore is at 0
+Sep 09 05:45:33 ip-10-74-131-125.ec2.internal update-os.sh[18345]: [1473399933][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:56 ip-10-74-131-125.ec2.internal update-os.sh[18345]: Error locking: semaphore is at 0
+Sep 09 05:45:56 ip-10-74-131-125.ec2.internal update-os.sh[18345]: [1473399956][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+
+
+10.74.131.147 | SUCCESS | rc=0 >>
+Sep 09 05:44:04 ip-10-74-131-147.ec2.internal update-os.sh[4055]: [1473399844][/home/core/ethos-systemd/v1/util/update-os.sh] Waiting for mesos http://10.74.131.147:5051/state to pass before freeing cluster-wide reboot lock
+Sep 09 05:44:05 ip-10-74-131-147.ec2.internal update-os.sh[4055]: [1473399845][/home/core/ethos-systemd/v1/util/update-os.sh] Waiting for mesos http://10.74.131.147:5051/state to pass before freeing cluster-wide reboot lock
+Sep 09 05:44:06 ip-10-74-131-147.ec2.internal update-os.sh[4055]: [1473399846][/home/core/ethos-systemd/v1/util/update-os.sh] Waiting for mesos http://10.74.131.147:5051/state to pass before freeing cluster-wide reboot lock
+Sep 09 05:44:07 ip-10-74-131-147.ec2.internal update-os.sh[4055]: [1473399847][/home/core/ethos-systemd/v1/util/update-os.sh] mesos/up Unlocking cluster reboot lock
+Sep 09 05:44:36 ip-10-74-131-147.ec2.internal update-os.sh[4055]: [1473399876][/home/core/ethos-systemd/v1/util/update-os.sh] finished update process.  everything normal ...
+
+
+10.74.131.145 | SUCCESS | rc=0 >>
+Sep 09 05:45:08 ip-10-74-131-145.ec2.internal update-os.sh[29070]: [1473399908][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:31 ip-10-74-131-145.ec2.internal update-os.sh[29070]: Error locking: semaphore is at 0
+Sep 09 05:45:31 ip-10-74-131-145.ec2.internal update-os.sh[29070]: [1473399931][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:54 ip-10-74-131-145.ec2.internal update-os.sh[29070]: Error locking: semaphore is at 0
+Sep 09 05:45:54 ip-10-74-131-145.ec2.internal update-os.sh[29070]: [1473399954][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+
+
+10.74.131.177 | SUCCESS | rc=0 >>
+Sep 09 05:46:08 ip-10-74-131-177.ec2.internal update-os.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_count: task_id phpinfo.phpinfo-server.cfortier--phpinfo---a----6d60311c-7579-11e6-b401-0acf33af2b2d.28881c02-7618-11e6-9c1b-5a3124ecbb2f has 0 connections
+Sep 09 05:46:08 ip-10-74-131-177.ec2.internal update-os.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_by_task_Id: loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.2887f4f0-7618-11e6-9c1b-5a3124ecbb2f docker pid: 10463 network mode: bridge
+Sep 09 05:46:08 ip-10-74-131-177.ec2.internal update-os.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_count: task_id loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.2887f4f0-7618-11e6-9c1b-5a3124ecbb2f has 1 connections
+Sep 09 05:46:08 ip-10-74-131-177.ec2.internal update-os.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_by_task_Id: loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.17277364-7619-11e6-9c1b-5a3124ecbb2f docker pid: 12167 network mode: bridge
+Sep 09 05:46:08 ip-10-74-131-177.ec2.internal update-os.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_count: task_id loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.17277364-7619-11e6-9c1b-5a3124ecbb2f has 1 connections
+
+
+10.74.131.165 | SUCCESS | rc=0 >>
+Sep 09 05:45:08 ip-10-74-131-165.ec2.internal update-os.sh[316]: [1473399908][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:31 ip-10-74-131-165.ec2.internal update-os.sh[316]: Error locking: semaphore is at 0
+Sep 09 05:45:31 ip-10-74-131-165.ec2.internal update-os.sh[316]: [1473399931][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:54 ip-10-74-131-165.ec2.internal update-os.sh[316]: Error locking: semaphore is at 0
+Sep 09 05:45:54 ip-10-74-131-165.ec2.internal update-os.sh[316]: [1473399954][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+
+```	
 
 
 >
