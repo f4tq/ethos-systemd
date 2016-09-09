@@ -3,14 +3,21 @@
 # Primarily for machines that are just coming up with an older version of CoreOS. As soon as
 # they come up this fleet unit will be launched on them, forcing a reboot.
 [Unit]
-Description=Force update CoreOS
+Description=CoreOS Continuous Updater
+Requires=docker.service
+After=docker.service bootstrap.service
 
 [Service]
-Type=oneshot
-SuccessExitStatus=0 1
-RemainAfterExit=yes
 
-ExecStart=/usr/bin/bash -c "update_engine_client -update|grep NEED_REBOOT && shutdown -r"
+Restart=on-failure
+RestartSec=20
+TimeoutStartSec=0
+User=root
+ExecStart=/home/core/ethos-systemd/v1/util/update-os.sh
+StandardOutput=journal+console
+
+#ExecStartPre=/bin/ping -c1 ready.spartan
+#ExecStartPre=/bin/ping -c1 leader.mesos
 
 [X-Fleet]
 Global=true

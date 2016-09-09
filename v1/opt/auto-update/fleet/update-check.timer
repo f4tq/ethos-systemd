@@ -1,0 +1,9 @@
+[Unit]
+Description=Runs CoreOS update check every 30m
+
+[Timer]
+OnUnitActiveSec=30m
+Unit=update-check.service
+
+[X-Fleet]
+Global=true
