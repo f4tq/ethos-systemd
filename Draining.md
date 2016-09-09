@@ -1,8 +1,10 @@
 # Skopos
-Skopos constitutes the orderly draining and rebooting of CoreOS nodes targeting no disruption to *docker* container instances started by *mesos* and running on the nodes.
+Skopos constitutes the orderly draining and rebooting of CoreOS worker nodes with the goal of no disruption to the Mesos created *docker* container instances running on them & balanced (meaning at least 2 instances) running on *different* nodes within the balancer space.
+It is highly recommended that `[[ hostname UNIQUE ]]` marathon constraint with instance count of at least 2 be used for effective use of this PR. 
 
-As docker provides a means to create user defined networks that are isolated, this project targets *bridged* and *host* networks as defined by docker.
-## Assumptions
+As docker provides a means to create user defined networks that can be wholey isolated, this project specifically targets docker instances running with *bridged* and *host* networks - as defined by docker.
+
+## Other Assumptions
 ### General
 - The system uses CoreOS
 - The system uses AWS (for now)
@@ -15,16 +17,38 @@ As docker provides a means to create user defined networks that are isolated, th
 - Only docker instances managed by Mesos are drained in the worker tier
 - Mesos master and slave are controlled by systemd units and these units are used to manage the Mesos life-cycle
 - The system has enough available resources to handle all resources deriving from a drained node
-- Only Marathon and Mesos are `drained` in the control tier.
-- Booster drain is an end of life task for the host
+- Only Marathon and Mesos processes are `drained` in the control tier.  
+
+> Due to mesos 0.27 maintenance API issues, the graceful shutdown (full draining) is unsupported in this release.  However orderly draining of the proxy and control tiers is supported
+
+- `Booster draining` resulting from scale down activity is an end of life task for the host
+- Inbounds connections to mesos instantiated apps are targeted by this process for tapering and elimination. 
+- Outbound connections are the responsibilty of the app instance.  However, this PR process accomodates that shutdown by sending SIGTERM (via docker stop) then waits 300 seconds before sending SIGKILL (via docker kill).
+
+> marathon-lb supports docker instance labeling that, in the future, be used to control the time between `SIGTERM` and `SIGKILL`
+
 
 ## Limitations
 - Marathon is currently unable to handle inverse offers from Mesos.
   - Inverse offers are sent by mesos when a node is scheduled for maintenance
 
 ##Requirements
-- [etcd-locks](https://github.com/adobe-platform/etcd-locks%20etcd-locks) can be pulled from the adobe-platform docker registry
-- The system should control the number of simultaneous
+- [etcd-locks](https://github.com/adobe-platform/etcd-locks%20etcd-locks) can be pulled from the adobe-platform docker registry/
+## Quick start
+- With this PR, the update-os.sh process starts via a fleet unit and is intended to run forever.
+- Without further action, nothing will happen.
+- To cause a reboot on a single host, visit that host and run
+```
+core@coreos: touch /var/lib/skopos/needs_reboot
+```
+- To cause the entire worker tier to reboot after draining in an orderly fashion, visit any (worker,proxy,control) node (they all have fleet) and run:
+```
+core@coreos:/home/core $ sudo ethos-systemd/v1/util/launch_worker_reboot.sh
+```
+- To cause the core node you're alreay on to drain, booster style, run:
+```
+core@coreos:/home/core $ sudo ethos-systemd/v1/util/launch_booster_drain.sh
+```
 
 ## Components
 ### Standard components
@@ -36,20 +60,21 @@ Skopos constitutes a locking system and a lot of scripts to handle the draining 
 #### Docker images
 ##### [etcd-locks](https://github.com/adobe-platform/etcd-locks)
 
-- etcd based locking system that allows for 1 to many simultaenous lock holders.
+- `etcd-locks` provides a locking system that allows for a configurable number of simultaenous lock holders
 - they are akin to semaphores
 - locks have values or *tokens*
-> cluster-wide lock tokens are the machine-id
+> cluster-wide lock token values are the machine-id (`cat /etc/machine-id`)
 - skopos uses 2 types of locks: cluster-wide and host.
 - cluster-wide locks have groups or tiers with a configurable number of simultaneous lock holder per-*group*.
 > For instance, the *reboot* lock used for update-os.sh has 3 groups: control, proxy, and workers with simultaneous lock holders defaulting to 1,1 & 1 respectively.  In a large cluster, the worker group may allow for 2 or more simultaneous holders.
 
-- groups names are arbitrary though.
+> groups names are arbitrary though.
   - see ethos-system/v1/util/lockctl.sh to see how they're configured for skopos.
   - host locks are named after the machine-id.
-    - they are intended help mediate conflicting operations within a single host.
-        -  such as guarding update-os from booster-drain from  occurring at the same time and causing kaos.
-	   - skopos token values are *REBOOT*, *DRAIN*,*BOOSTER*
+    - they are intended to help mediate conflicting operations occurring within a single host.
+        -  such as guarding from `update-os` and `booster-drain` from occurring at the same time and causing kaos.
+    - skopos host lock token values are *REBOOT*, *DRAIN*,*BOOSTER*
+
 
 #### Scripts
 All scripts in skopos are placed in [ethos-systemd](http://github.com/f4tq/ethos-systemd).
