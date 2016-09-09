@@ -17,7 +17,7 @@ Environment="SCALOCK_AUDIT_DB_NAME=etcdctl get /aqua/config/db-audit-name"
 Restart=always
 RestartSec=8
 
-ExecStartPre=/usr/bin/systemctl is-active update-os.service
+ExecStartPre=/usr/bin/systemctl is-active update-os.timer
 ExecStartPre=/usr/bin/sh -c "docker pull $($IMAGE)"
 ExecStartPre=-/usr/bin/docker kill aqua-gateway
 ExecStartPre=-/usr/bin/docker rm aqua-gateway

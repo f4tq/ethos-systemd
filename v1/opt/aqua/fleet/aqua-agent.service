@@ -13,7 +13,7 @@ User=core
 Type=oneshot
 TimeoutStartSec=10m
 
-ExecStartPre=/usr/bin/systemctl is-active update-os.service
+ExecStartPre=/usr/bin/systemctl is-active update-os.timer
 ExecStartPre=/usr/bin/sh -c  "if [[ -f /etc/profile.d/etcdctl.sh ]]; then source /etc/profile.d/etcdctl.sh;fi && \
 docker pull $($IMAGE)"
 
