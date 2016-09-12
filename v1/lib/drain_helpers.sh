@@ -710,19 +710,18 @@ drain(){
 	    # we need to exit with an error
 	    error "schedule mesos maintenance failed.  host already down? use mesos_status.sh to see"
 	fi
-    else
-	log "Skipping Mesos Schedule drain: using old mesos version ${MESOS_VERSION}"
-	if [ "${NODE_ROLE}" == "worker" ] && [ ! -z "${MESOS_UNIT}" ]; then
-	    # we already have mesos/marathon/docker data
-	    systemctl stop ${MESOS_UNIT}
-	    if [ $? -ne 0 ]; then
-		exit -2
-	    fi
-	else
-	    log "Warning: no mesos unit to stop"
-	fi
+
+	$LOCALPATH/../util/mesos_down.sh
     fi
-    set +x
+    if [ "${NODE_ROLE}" == "worker" ] && [ ! -z "${MESOS_UNIT}" ]; then
+	# we already have mesos/marathon/docker data
+	systemctl stop ${MESOS_UNIT}
+	if [ $? -ne 0 ]; then
+	    exit -2
+	fi
+    else
+	log "Warning: no mesos unit to stop"
+    fi
 							     
     # update docker inspect just in case the lock took a while to get
     
@@ -732,20 +731,7 @@ drain(){
     
     # if a newer version of mesos, then use mesos api
 
-    set -x 
-    if ${USE_MESOS_API} ;then
-	$LOCALPATH/../util/mesos_down.sh
-	if [ "${NODE_ROLE}" == "worker" ] && [ ! -z "${MESOS_UNIT}" ]; then
-	    # we already have mesos/marathon/docker data
-	    systemctl stop ${MESOS_UNIT}
-	    if [ $? -ne 0 ]; then
-		exit -2
-	    fi
-	else
-	    log "Warning: no mesos unit to stop"
-	fi
-    fi
-    
+    set -x     
     if [ "${NODE_ROLE}" == "control" ] && [ ! -z "${MESOS_UNIT}" ]; then
 	# we already have mesos/marathon/docker data
 	systemctl stop ${MESOS_UNIT}
