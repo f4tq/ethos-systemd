@@ -82,7 +82,7 @@ update_marathon_jobs(){
 docker_alive(){
     docker inspect -f '{{.State.Pid}}' $1 2> /dev/null 
     if [ $? -ne 0 ];then
-	echo 0
+	return 0
     fi
 }
 
@@ -271,14 +271,14 @@ get_connections_by_docker_pid(){
 		if $verbose; then
 		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E ) 2> /dev/null  || echo
 		else
-		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l ) 2>/dev/null || echo 0
+		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l ) 2>/dev/null || return 0
 		fi
 	    else
 		# with ethos it seems, there is a lot of instance churn.  Our process can just disappear so handle that here
 		if $verbose; then
 		    echo
 		else
-		    echo 0
+		    return 0
 		fi
 	    fi
 	    ;;
@@ -307,7 +307,7 @@ get_connections_by_docker_pid(){
 		
 		ss -tn4 -o state established   | grep -c -E -e X_X_X $(listening_patterns ${task_pid})  2>/dev/null 
 		if [ $? -ne 0 ] ; then
-		    echo 0
+		    return 0
 		fi
 	    fi
 
@@ -317,7 +317,7 @@ get_connections_by_docker_pid(){
 	    if $verbose ; then
 		echo
 	    else
-		echo 0
+		return 0
 	    fi
     esac
 }
@@ -345,7 +345,7 @@ get_connections_by_task_id(){
 	if $verbose; then
 	    echo
 	else
-	    echo 0
+	    return 0
 	fi
     else
 	get_connections_by_docker_pid $task_pid $mode $verbose
