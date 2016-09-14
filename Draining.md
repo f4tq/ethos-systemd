@@ -69,10 +69,15 @@ Fleet is used to schedule global units with systemd.
 - This unit can be triggered manually by touch `/var/lib/skopos/needs_reboot`
 - This unit can be triggered to reboot the entire worker tier by running `sudo ethos-systemd/v1/util/launch_workers_reboot.sh`
 
-###### [update-check.timer](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-check.timer),[update-check.service](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-check.service),[update-check.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/update-check.sh)
+###### [update-check.timer](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-check.timer), [update-check.service](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-check.service), and [update-check.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/update-check.sh) collection
 
-This unit is currently optional.  It should eventually be mandatory.  It can be used to trigger a given node to reboot in response to a CoreOS update that needs a reboot.
+These units are currently optional.  It should eventually be mandatory.  It can be used to trigger a given node to reboot in response to a CoreOS update that needs a reboot.
 
+###### [drain-cleanup.timer](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/fleet/drain-cleanup.timer),[drain-cleanup.service](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/fleet/drain-cleanup.service),[drain-cleanup.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/drain-cleanup.sh)
+
+This timer unit, service unit and script clean up after oneshots that are scheduled and launched by fleet as oneshots.  The oneshot executes correctly via systemd but fleet states don't align with systemd states meaning the unit can be re-scheduled later which is not the desired effect.  
+
+The unit that this long-running unit set cleans up after are launched by  [launch_booster_drain.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/launch_booster_drain.sh) and [launch_workers_reboot.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/launch_workers_reboot.sh).
 
 
 #### Docker images
@@ -119,7 +124,7 @@ $ etcdctl ls --recursive | grep adobe.com
 > Strictly speaking, groups names are arbitrary to etcd-locks.  They are aligned with CoreOS/Ethos tiers for skopos.
 
 - use [v1/util/lockctl.sh](https://github.com/f4tq/ethos-systemd/blob/feature/drain-submission/v1/util/lockctl.sh) to view and manipulate cluster wide and host locks
-- see [v1/lib/lock_helpers.sh](https://github.com/f4tq/ethos-systemd/blob/feature/drain-submission/v1/lib/lock_helper.sh) to see how etcd-locks are wrapped for skopos.
+- see [v1/lib/lock_helpers.sh](https://github.com/f4tq/ethos-systemd/blob/feature/drain-submission/v1/lib/lock_helpers.sh) to see how etcd-locks are wrapped for skopos.
 - host locks are named after the machine-id.
     - they are intended to help mediate conflicting operations occurring within a single host.
         -  such as guarding from `update-os` and `booster-drain` from occurring at the same time and causing kaos.

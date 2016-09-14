@@ -28,6 +28,10 @@ for i in $(ls /var/lib/skopos/*.done 2>/dev/null); do
 	    if [ "inactive" == "$active" ];then
 		log "drain-cleanup removing fleet unit $unit"
 		fleetctl destroy $unit
+		if [ $? -eq 0 ]; then
+		    # cleanup
+		    rm -f $i
+		fi
 	    fi
     fi
 done
