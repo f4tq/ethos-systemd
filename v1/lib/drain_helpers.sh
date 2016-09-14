@@ -82,7 +82,7 @@ update_marathon_jobs(){
 docker_alive(){
     docker inspect -f '{{.State.Pid}}' $1 2> /dev/null 
     if [ $? -ne 0 ];then
-	return 0
+	echo 0
     fi
 }
 
@@ -271,14 +271,14 @@ get_connections_by_docker_pid(){
 		if $verbose; then
 		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E ) 2> /dev/null  || echo
 		else
-		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l ) 2>/dev/null || return 0
+		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l ) 2>/dev/null || echo 0
 		fi
 	    else
 		# with ethos it seems, there is a lot of instance churn.  Our process can just disappear so handle that here
 		if $verbose; then
 		    echo
 		else
-		    return 0
+		    echo 0
 		fi
 	    fi
 	    ;;
@@ -307,7 +307,7 @@ get_connections_by_docker_pid(){
 		
 		ss -tn4 -o state established   | grep -c -E -e X_X_X $(listening_patterns ${task_pid})  2>/dev/null 
 		if [ $? -ne 0 ] ; then
-		    return 0
+		    echo 0
 		fi
 	    fi
 
@@ -317,7 +317,7 @@ get_connections_by_docker_pid(){
 	    if $verbose ; then
 		echo
 	    else
-		return 0
+		echo 0
 	    fi
     esac
 }
@@ -345,7 +345,7 @@ get_connections_by_task_id(){
 	if $verbose; then
 	    echo
 	else
-	    return 0
+	    echo 0
 	fi
     else
 	get_connections_by_docker_pid $task_pid $mode $verbose
@@ -695,9 +695,9 @@ drain(){
 	fi
     fi
     # schedule a drain
-    set -x
+    
     log "USE_MESOS_API? : ${USE_MESOS_API}"
-
+    
 	#
 	# if we're not using the mesos api, we stop the slave which leaves docker instances going
 	# before 0.28.1, if you use the API, the slave stops and takes all the docker instances with it
@@ -731,7 +731,7 @@ drain(){
     
     # if a newer version of mesos, then use mesos api
 
-    set -x     
+
     if [ "${NODE_ROLE}" == "control" ] && [ ! -z "${MESOS_UNIT}" ]; then
 	# we already have mesos/marathon/docker data
 	systemctl stop ${MESOS_UNIT}
@@ -741,5 +741,5 @@ drain(){
     else
 	log "Warning: no mesos unit to stop"
     fi
-    set +x
+
 }
