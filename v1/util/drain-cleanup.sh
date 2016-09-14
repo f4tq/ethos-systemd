@@ -16,7 +16,7 @@ log "drain_cleanup running"
 
 # cleanup fleet created oneshot systemd units that fleet doesn't know how to remove.  in fact, it will try to launch it on a reboot
 
-for i in $(ls /var/lib/skopos/*.done); do
+for i in $(ls /var/lib/skopos/*.done 2>/dev/null); do
     unit="$(basename $i | awk -F'.done' '{print $1}')"
     
     status="$(systemctl is-enabled XX  2>/dev/null )"
