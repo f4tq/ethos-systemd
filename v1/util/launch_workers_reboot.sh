@@ -35,7 +35,7 @@ for machineId in $(fleetctl list-machines --full | grep "role=$tier" | awk '{pri
         { "section": "Service", "name": "User", "value": "root"},
         { "section": "Service", "name": "RemainAfterExit", "value": "no"},
         { "section": "Service", "name": "StandardOutput", "value": "journal+console"},
-        { "section": "Service", "name": "ExecStart", "value": "/bin/bash -c 'set -x; /usr/bin/touch /var/lib/skopos/needs_reboot;  touch /var/lib/skopos/${unit_name}.done; /usr/bin/fleetctl destroy ${unit_name}'"},
+        { "section": "Service", "name": "ExecStart", "value": "/bin/bash -c 'set -x; /usr/bin/touch /var/lib/skopos/needs_reboot;  touch /var/lib/skopos/${unit_name}.done'"},
         { "section": "X-Fleet", "name": "MachineID", "value": "$machineId"}
    ]
 }

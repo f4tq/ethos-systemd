@@ -74,7 +74,7 @@ cat <<EOF > $json
         { "section": "Service", "name": "User", "value": "root"},
         { "section": "Service", "name": "RemainAfterExit", "value": "yes"},
         { "section": "Service", "name": "StandardOutput", "value": "journal+console"},
-        { "section": "Service", "name": "ExecStart", "value": "/bin/bash -xc '/home/core/ethos-systemd/v1/util/booster-drain.sh --notify ${notify} --machine-id ${machindId} ; touch /var/lib/skopos/${unit_name}.done; /usr/bin/fleetctl destroy ${unit_name} '"},
+        { "section": "Service", "name": "ExecStart", "value": "/bin/bash -xc '/home/core/ethos-systemd/v1/util/booster-drain.sh --notify ${notify} --machine-id ${machindId} ; touch /var/lib/skopos/${unit_name}.done'"},
         { "section": "X-Fleet", "name": "MachineID", "value": "$(cat /etc/machine-id)"}
     ]
 }

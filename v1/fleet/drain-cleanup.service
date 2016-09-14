@@ -1,0 +1,15 @@
+[Unit]
+Description=Drain Cleanup
+After=docker.service
+Requires=docker.service
+
+[Service]
+User=root
+Restart=on-failure
+RestartSec=20
+TimeoutStartSec=0
+ExecStartPre=/usr/bin/systemctl is-active bootstrap
+ExecStart=/bin/bash /home/core/ethos-systemd/v1/util/drain-cleanup.sh
+
+[X-Fleet]
+Global=true

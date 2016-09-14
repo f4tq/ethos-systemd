@@ -59,20 +59,73 @@ For cluster wide control, use ansible and see `Running` below
 
 ### Skopos components
 Skopos constitutes a locking system and a lot of scripts to handle the draining process.
+#### fleet/systemd units
+Fleet is used to schedule global units with systemd.
+
+##### Units
+###### [update-os.service](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/fleet/update-os.service)
+- This unit was previously used to check CoreOS for updates.
+- Now this service reacts to reboot actions resulting from a CoreOS update requirement.
+- This unit can be triggered manually by touch `/var/lib/skopos/needs_reboot`
+- This unit can be triggered to reboot the entire worker tier by running `sudo ethos-systemd/v1/util/launch_workers_reboot.sh`
+
+###### [update-check.timer](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-check.timer), [update-check.service](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-check.service), and [update-check.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/update-check.sh) collection
+
+These units are currently optional.  It should eventually be mandatory.  It can be used to trigger a given node to reboot in response to a CoreOS update that needs a reboot.
+
+###### [drain-cleanup.timer](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/fleet/drain-cleanup.timer),[drain-cleanup.service](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/fleet/drain-cleanup.service),[drain-cleanup.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/drain-cleanup.sh)
+
+This timer unit, service unit and script clean up after oneshots that are scheduled and launched by fleet as oneshots.  The oneshot executes correctly via systemd but fleet states don't align with systemd states meaning the unit can be re-scheduled later which is not the desired effect.  
+
+The unit that this long-running unit set cleans up after are launched by  [launch_booster_drain.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/launch_booster_drain.sh) and [launch_workers_reboot.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/launch_workers_reboot.sh).
+
+
 #### Docker images
 ##### [etcd-locks](https://github.com/adobe-platform/etcd-locks)
 
 - `etcd-locks` provides a locking system that allows for a configurable number of simultaenous lock holders
 - they are akin to semaphores
 - locks have values or *tokens*
+
 > cluster-wide lock token values are the machine-id (`cat /etc/machine-id`)
+
 - skopos uses 2 types of locks: cluster-wide and host.
 - cluster-wide locks have groups or tiers with a configurable number of simultaneous lock holder per-*group*.
+
 > For instance, the *reboot* lock used for update-os.sh has 3 groups: control, proxy, and workers with simultaneous lock holders defaulting to 1,1 & 1 respectively.  In a large cluster, the worker group may allow for 2 or more simultaneous holders.
 
-> groups names are arbitrary though.
-  - see ethos-system/v1/util/lockctl.sh to see how they're configured for skopos.
-  - host locks are named after the machine-id.
+```
+$ etcdctl ls --recursive | grep adobe.com
+/adobe.com/locks
+/adobe.com/locks/cluster-wide
+/adobe.com/locks/cluster-wide/booster_drain
+/adobe.com/locks/cluster-wide/booster_drain/groups
+/adobe.com/locks/cluster-wide/booster_drain/groups/worker
+/adobe.com/locks/cluster-wide/booster_drain/groups/worker/semaphore
+/adobe.com/locks/cluster-wide/booster_drain/groups/proxy
+/adobe.com/locks/cluster-wide/booster_drain/groups/proxy/semaphore
+/adobe.com/locks/cluster-wide/booster_drain/groups/control
+/adobe.com/locks/cluster-wide/booster_drain/groups/control/semaphore
+/adobe.com/locks/cluster-wide/coreos_reboot
+/adobe.com/locks/cluster-wide/coreos_reboot/groups
+/adobe.com/locks/cluster-wide/coreos_reboot/groups/control
+/adobe.com/locks/cluster-wide/coreos_reboot/groups/control/semaphore
+/adobe.com/locks/cluster-wide/coreos_reboot/groups/worker
+/adobe.com/locks/cluster-wide/coreos_reboot/groups/worker/semaphore
+/adobe.com/locks/cluster-wide/coreos_reboot/groups/proxy
+/adobe.com/locks/cluster-wide/coreos_reboot/groups/proxy/semaphore
+/adobe.com/locks/per-host
+/adobe.com/locks/per-host/4cafcc53b54e4f65a942158944e09416
+/adobe.com/locks/per-host/43de1d7058d74510bfe550b12a516111
+/adobe.com/locks/per-host/1e5557a39de44ac88caa39dbfa64c14b
+-- snip -- 
+```
+
+> Strictly speaking, groups names are arbitrary to etcd-locks.  They are aligned with CoreOS/Ethos tiers for skopos.
+
+- use [v1/util/lockctl.sh](https://github.com/f4tq/ethos-systemd/blob/feature/drain-submission/v1/util/lockctl.sh) to view and manipulate cluster wide and host locks
+- see [v1/lib/lock_helpers.sh](https://github.com/f4tq/ethos-systemd/blob/feature/drain-submission/v1/lib/lock_helpers.sh) to see how etcd-locks are wrapped for skopos.
+- host locks are named after the machine-id.
     - they are intended to help mediate conflicting operations occurring within a single host.
         -  such as guarding from `update-os` and `booster-drain` from occurring at the same time and causing kaos.
     - skopos host lock token values are *REBOOT*, *DRAIN*,*BOOSTER*
