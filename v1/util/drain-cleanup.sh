@@ -19,11 +19,11 @@ log "drain_cleanup running"
 for i in $(ls /var/lib/skopos/*.done 2>/dev/null); do
     unit="$(basename $i | awk -F'.done' '{print $1}')"
     
-    status="$(systemctl is-enabled XX  2>/dev/null )"
+    status="$(systemctl is-enabled $unit  2>/dev/null )"
 
     if [ "linked-runtime" == "$status" ];then
 	
-	    active="$(systemctl is-active XX  2>/dev/null )"
+	    active="$(systemctl is-active  $unit  2>/dev/null )"
 
 	    if [ "inactive" == "$active" ];then
 		log "drain-cleanup removing fleet unit $unit"
