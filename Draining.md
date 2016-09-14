@@ -59,6 +59,22 @@ For cluster wide control, use ansible and see `Running` below
 
 ### Skopos components
 Skopos constitutes a locking system and a lot of scripts to handle the draining process.
+#### fleet/systemd units
+Fleet is used to schedule global units with systemd.
+
+##### Units
+###### [update-os.service](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/fleet/update-os.service)
+- This unit was previously used to check CoreOS for updates.
+- Now this service reacts to reboot actions resulting from a CoreOS update requirement.
+- This unit can be triggered manually by touch `/var/lib/skopos/needs_reboot`
+- This unit can be triggered to reboot the entire worker tier by running `sudo ethos-systemd/v1/util/launch_workers_reboot.sh`
+
+###### [update-check.timer](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-check.timer),[update-check.service](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-check.service),[update-check.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/update-check.sh)
+
+This unit is currently optional.  It should eventually be mandatory.  It can be used to trigger a given node to reboot in response to a CoreOS update that needs a reboot.
+
+
+
 #### Docker images
 ##### [etcd-locks](https://github.com/adobe-platform/etcd-locks)
 
