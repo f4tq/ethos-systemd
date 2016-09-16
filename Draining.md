@@ -34,7 +34,7 @@ As docker provides a means to create user defined networks that can be wholey is
   - Inverse offers are sent by mesos when a node is scheduled for maintenance
 
 ##Requirements
-- [etcd-locks](https://github.com/adobe-platform/etcd-locks%20etcd-locks) can be pulled from the adobe-platform docker registry/
+- [etcd-locks](https://github.com/adobe-platform/etcd-locks) can be pulled from the adobe-platform docker registry/
 ## Quick start
 - With this PR, the update-os.sh process starts via a fleet unit and is intended to run forever.
 - Without further action, nothing will happen.
