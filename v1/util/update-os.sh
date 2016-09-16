@@ -96,6 +96,8 @@ timeout=10
 # drain first
 while : ; do
     if $(need_reboot) ; then
+	protect_from_autoscaler
+
 	lock_reboot
 	if [ $? -eq 0 ]; then
 	    #on_exit 'unlock_reboot'

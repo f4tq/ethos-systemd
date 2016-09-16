@@ -60,6 +60,35 @@ assert_root(){
 	die "You must be root to execute this script"
     fi
 }
+# The autoscaler has been seen to kill an etcd instance that's holding a cluster wide lock on reboot probably due to health
+#
+# if this is true, fleet has the old machine-id and the new so the size of the list - which should be 1 - will be 2.
+# the cluster-wide locks held with the old machine-id will never be freed.
+#
+#
+protect_from_autoscaler(){
+    if [ 1 -lt $( (etcdctl ls --recursive /_coreos.com/fleet/machines | grep object | xargs -n 1 -IXX etcdctl get XX | jq -r '. | [ .PublicIP,.ID] | join(" ")') | grep -c "${LOCAL_IP}" ) ] ; then
+	error_log "Detected autoscaler killing node.  Same IP with more than 1 machine id"
+	reboot_holder="$((etcdctl ls --recursive /_coreos.com/fleet/machines | grep object | xargs -n 1 -IXX etcdctl get XX | jq -r '. | [ .PublicIP,.ID] | join(" ")') |	grep ${LOCAL_IP} | grep -v $MACHINEID|awk '{print $2}' )"
+	if [ ! -z "${reboot_holder}" ]; then
+	    error_log "releasing reboot lock held by dead node"
+	    unlock_reboot ${reboot_holder}
+	fi
+    else
+	reboot_holder="$(reboot_state)"
+	if [ ! -z "${reboot_holder}" ]; then
+	    # make sure the
+	    if [ 0 -eq $(etcdctl ls --recursive /_coreos.com/fleet/machines | grep object | grep -c "${reboot_holder}") ]; then
+		error_log "WARNING: forcible trying to unlock rebook lock.  holder machine (${reboot_holder}) no longer exists.  Something killed the host"
+		unlock_reboot ${reboot_holder}
+		if [ $? -eq 0 ]; then
+		    error_log "Good News:  I was able to releash reboot_lock.  holder machine (${reboot_holder}) no longer exists.  Something must killed the host"
+		fi
+	    fi
+	fi
+    fi
+}
+
 finish_ok(){
     if [ ! -z "$1" ]; then
 	log $*
@@ -72,7 +101,12 @@ lock_booster(){
 }
 
 unlock_booster(){
-    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} unlock $MACHINEID
+    id=$MACHINEID
+    if [ ! -z "$1" ]; then
+	id=$1
+    fi
+
+    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${BOOSTER_LOCK} --group ${NODE_ROLE} unlock $id
 }    
 
 lock_drain(){
@@ -80,7 +114,11 @@ lock_drain(){
 }
 
 unlock_drain(){
-    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${UPDATE_DRAIN_LOCK} --group ${NODE_ROLE} unlock $MACHINEID
+    id=$MACHINEID
+    if [ ! -z "$1" ]; then
+	id=$1
+    fi
+    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${UPDATE_DRAIN_LOCK} --group ${NODE_ROLE} unlock $id
 }
 
 lock_reboot(){
@@ -88,7 +126,11 @@ lock_reboot(){
 }
 
 unlock_reboot(){
-    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${REBOOT_LOCK} --group ${NODE_ROLE} unlock $MACHINEID
+    id=$MACHINEID
+    if [ ! -z "$1" ]; then
+	id=$1
+    fi
+    docker run --net host -i --rm  -e LOCKSMITHCTL_ENDPOINT=${LOCKSMITHCTL_ENDPOINT} $IMAGE  locksmithctl --path ${SKOPOS_CLUSTERWIDE_LOCKS} --topic ${REBOOT_LOCK} --group ${NODE_ROLE} unlock $id
 }
 
     

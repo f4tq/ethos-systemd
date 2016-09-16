@@ -420,7 +420,7 @@ show_marathon_docker_pids() {
 #
 generate_marathon_fw_rules() {
     # ELB health checks are long.  this is very AWS specific and only works if the endpoint is not SSL
-    echo "iptables -A SKOPOS -p tcp -m string --algo bm --string "ELB-HealthChecker" -j DROP"
+    echo "iptables -A SKOPOS -p tcp -m string --algo bm --string "ELB-HealthChecker" -j REJECT"
 
     if [ "${NODE_ROLE}" == "worker" ]; then
 	for i in $(marathon_jobs | jq -r '.[] | .mesos_task_id' ); do
