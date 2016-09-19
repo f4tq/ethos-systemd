@@ -1,0 +1,10 @@
+[Unit]
+Description=Runs CoreOS update check every 10m
+
+[Timer]
+OnBootSec=10min
+
+OnUnitActiveSec=10min
+
+[X-Fleet]
+Global=true

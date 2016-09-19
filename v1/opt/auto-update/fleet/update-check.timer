@@ -1,8 +1,0 @@
-[Unit]
-Description=Runs CoreOS update check every 30m
-
-[Timer]
-OnUnitActiveSec=30m
-
-[X-Fleet]
-Global=true

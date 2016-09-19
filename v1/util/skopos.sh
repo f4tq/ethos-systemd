@@ -106,11 +106,11 @@ while : ; do
 		$LOCALPATH/drain.sh drain "REBOOT"
 		status=$?
 		if [ $status -eq 0 ] ; then 
-		    log "update-os|drain succeeded. rebooting host_locks sez: $(host_state)"
+		    log "skopos|drain succeeded. rebooting host_locks sez: $(host_state)"
 		    touch /var/lib/skopos/rebooting
 		    shutdown -r now
 		else
-		    log "update-os| Can't drain.  host lock's state: '$(host_state)'"
+		    log "skopos| Can't drain.  host lock's state: '$(host_state)'"
 		    set -x
 		    unlock_reboot
 		    set +x
@@ -118,7 +118,7 @@ while : ; do
 		fi
 	    done
 	else
-	    log "update-os|Can't get reboot lock. sleeping"
+	    log "skopos|Can't get reboot lock. sleeping"
 	    sleep 1
 	fi
     fi

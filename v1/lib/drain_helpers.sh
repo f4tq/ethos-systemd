@@ -77,12 +77,45 @@ update_marathon_jobs(){
 #  
 # This gets run again after we acquire the lock
 #
-
-# convenience.  if invalid arg, docker causes error.  we need a zero anyways
-docker_alive(){
-    docker inspect -f '{{.State.Pid}}' $1 2> /dev/null 
-    if [ $? -ne 0 ];then
-	echo 0
+docker_name(){
+    if [ -z "$1" ]; then
+	echo 
+	return
+    fi
+    docker inspect -f '{{.Name}}' $1 2>/dev/null || echo
+}
+docker_image(){
+    if [ -z "$1" ]; then
+	echo 
+	return
+    fi
+    docker inspect -f '{{.Config.Image}}' $1 || echo
+}
+    
+docker_network(){
+    if [ -z "$1" ]; then
+	echo -n "none"
+	return
+    fi
+    taskId=$1
+    mode=$(docker inspect -f '{{.HostConfig.NetworkMode}}' $taskId)
+    if [ $? -ne 0 ] || [ -z "$mode" ]; then
+	echo -n 0
+    else
+	echo $mode
+    fi
+}
+docker_pid(){
+    if [ -z "$1" ]; then
+	echo -n 0
+	return
+    fi
+    taskId=$1
+    pid=$(docker inspect -f '{{.State.Pid}}' $taskId 2>/dev/null)
+    if [ $? -ne 0 ] || [ -z "$pid" ]; then
+	echo -n 0
+    else
+	echo $pid
     fi
 }
 
@@ -91,7 +124,7 @@ update_docker_inspect(){
     mkdir -p ${DOCKER_INSPECT_DIR}
     # docker ps -q can take over a minute...
     for i in $(ls /var/lib/docker/containers); do
-	if [ 0 -eq $(docker_alive $i) ]; then
+	if [ 0 -eq $(docker_pid $i) ]; then
 	    if [ -e ${DOCKER_INSPECT_DIR}/$i.json ]; then
 		rm -f ${DOCKER_INSPECT_DIR}/$i.json
 	    fi
@@ -228,7 +261,7 @@ get_fw_rules(){
     dockerId=$1
     mode=$(find_docker_networkmode_by_id $dockerId)
     case "$mode" in
-	bridge)
+	bridge|default)
 	    #
 	    #      this                                    V is .[] with all
 	    #
@@ -271,14 +304,14 @@ get_connections_by_docker_pid(){
 		if $verbose; then
 		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E ) 2> /dev/null  || echo
 		else
-		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l ) 2>/dev/null || echo 0
+		    ( cat /proc/${task_pid}/net/tcp6  | $LOCALPATH/read_tcp6.sh -E | wc -l ) 2>/dev/null || echo -n 0
 		fi
 	    else
 		# with ethos it seems, there is a lot of instance churn.  Our process can just disappear so handle that here
 		if $verbose; then
 		    echo
 		else
-		    echo 0
+		    echo -n 0
 		fi
 	    fi
 	    ;;
@@ -304,11 +337,7 @@ get_connections_by_docker_pid(){
 		    echo
 		fi
 	    else
-		
 		ss -tn4 -o state established   | grep -c -E -e X_X_X $(listening_patterns ${task_pid})  2>/dev/null 
-		if [ $? -ne 0 ] ; then
-		    echo 0
-		fi
 	    fi
 
 	    ;;
@@ -317,7 +346,7 @@ get_connections_by_docker_pid(){
 	    if $verbose ; then
 		echo
 	    else
-		echo 0
+		echo -n 0
 	    fi
     esac
 }
@@ -345,7 +374,7 @@ get_connections_by_task_id(){
 	if $verbose; then
 	    echo
 	else
-	    echo 0
+	    echo -n 0
 	fi
     else
 	get_connections_by_docker_pid $task_pid $mode $verbose
@@ -468,14 +497,22 @@ show_marathon_connections() {
 	else
 	    # ethos
 	    for taskId in $(docker_ids);  do
-		task_pid=$(docker inspect -f '{{.State.Pid}}' $taskId)
-		mode=$(docker inspect -f '{{.HostConfig.NetworkMode}}' $taskId)
+		task_pid=$(docker_pid $taskId)
+		if [ 0 -eq ${task_pid} ];then
+		    continue
+		fi
+		mode=$(docker_network $taskId)
+		if [ -z "$mode" -o "none" == "$mode" ]; then
+		    continue
+		fi
+
 		get_connections_by_docker_pid $task_pid $mode true
 	    done
 	fi
     fi
 }
 
+    
 get_connection_count(){
     cnt=0
     verbose=false
@@ -496,10 +533,19 @@ get_connection_count(){
 	else
 	    # ethos
 	    for taskId in $(docker_ids);  do
-		task_pid=$(docker inspect -f '{{.State.Pid}}' $taskId)
-		mode=$(docker inspect -f '{{.HostConfig.NetworkMode}}' $taskId)
-		jj=$((get_connections_by_docker_pid $task_pid $mode $verbose))
-		cnt=$(( $cnt + $jj ))
+		task_pid=$(docker_pid $taskId)
+		if [ 0 -eq ${task_pid} ];then
+		    continue
+		fi
+		mode=$(docker_network $taskId)
+		if [ -z "$mode" -o "none" == "$mode" ]; then
+		    continue
+		fi
+		jj=$(get_connections_by_docker_pid $task_pid $mode $verbose)
+		if [ $jj -ne 0 ]; then
+		    error_log "$(docker_name $taskId) - has $jj connections"
+		    cnt=$(( $cnt + $jj ))
+		fi
 	    done
 	    echo $cnt
 	fi
@@ -608,13 +654,11 @@ drain_docker() {
 	# stop all the docker instances
 
 	for i in $(marathon_docker_ids) ; do
-	    if [ 0 -eq $(docker_alive $i) ]; then
+	    if [ 0 -eq $(docker_pid $i) ]; then
 		echo "$i Already dead "
 	    else
-		set +x
-		docker stop $i
-		set -x
-		error_log "Sent stop to $(docker inspect -f '{{.Name}}' $i ) - $(docker inspect -f '{{.Config.Image}}' $i) logs:"
+		docker kill --signal SIGTERM $i
+		error_log "Sent SIGTERM to $(docker_name $i) - $(docker_image $i) logs:"
 		docker logs $i 2>&1 | tail -5 >&2
 	    fi
 	done
@@ -632,7 +676,7 @@ drain_docker() {
 		if [ "$i" == "X_X_X" ];then
 		    break
 		fi
-		if [ 0 -ne $(docker_alive $i) ]; then
+		if [ 0 -ne $(docker_pid $i) ]; then
 		    cnt=$(( $cnt + 1 ))
 		fi
 	    done
@@ -649,7 +693,7 @@ drain_docker() {
 	    if [ "$j" == "X_X_X" ];then
 		break
 	    fi
-	    log "drain_docker| Violently killing docker container $(docker inspect -f '{{.Name}}' $j) - $(docker inspect -f '{{.Config.Image}}' $j) "
+	    log "drain_docker| Violently killing docker container $(docker_name $j) $(docker_image $j) "
 	    docker kill $j 
 	done
     fi

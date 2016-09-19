@@ -16,7 +16,7 @@ Restart=always
 RestartSec=8
 TimeoutStartSec=0
 
-ExecStartPre=/usr/bin/systemctl is-active update-os.service
+ExecStartPre=/usr/bin/systemctl is-active update-os.timer
 ExecStartPre=/usr/bin/systemctl is-active zk-health.service
 ExecStartPre=/usr/bin/bash -c "if [ ! -f /opt/mesos/credentials ]; then exit 1; fi"
 ExecStartPre=/usr/bin/sh -c "docker pull $($IMAGE)"

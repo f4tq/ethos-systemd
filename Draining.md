@@ -36,7 +36,7 @@ As docker provides a means to create user defined networks that can be wholey is
 ##Requirements
 - [etcd-locks](https://github.com/adobe-platform/etcd-locks) can be pulled from the adobe-platform docker registry/
 ## Quick start
-- With this PR, the update-os.sh process starts via a fleet unit and is intended to run forever.
+- With this PR, the skopos.sh process starts via a fleet unit and is intended to run forever.
 - Without further action, nothing will happen.
 - To cause a reboot on a single host, visit that host and run
 ```
@@ -69,7 +69,7 @@ Fleet is used to schedule global units with systemd.
 - This unit can be triggered manually by touch `/var/lib/skopos/needs_reboot`
 - This unit can be triggered to reboot the entire worker tier by running `sudo ethos-systemd/v1/util/launch_workers_reboot.sh`
 
-###### [update-check.timer](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-check.timer), [update-check.service](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-check.service), and [update-check.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/update-check.sh) collection
+###### [update-os.timer](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-os.timer), [update-os.service](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/opt/autoload/fleet/update-os.service), and [update-check.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/update-check.sh) collection
 
 These units are currently optional.  It should eventually be mandatory.  It can be used to trigger a given node to reboot in response to a CoreOS update that needs a reboot.
 
@@ -92,7 +92,7 @@ The unit that this long-running unit set cleans up after are launched by  [launc
 - skopos uses 2 types of locks: cluster-wide and host.
 - cluster-wide locks have groups or tiers with a configurable number of simultaneous lock holder per-*group*.
 
-> For instance, the *reboot* lock used for update-os.sh has 3 groups: control, proxy, and workers with simultaneous lock holders defaulting to 1,1 & 1 respectively.  In a large cluster, the worker group may allow for 2 or more simultaneous holders.
+> For instance, the *reboot* lock used for skopos.sh has 3 groups: control, proxy, and workers with simultaneous lock holders defaulting to 1,1 & 1 respectively.  In a large cluster, the worker group may allow for 2 or more simultaneous holders.
 
 ```
 $ etcdctl ls --recursive | grep adobe.com
@@ -135,8 +135,8 @@ $ etcdctl ls --recursive | grep adobe.com
 All scripts in skopos are placed in [ethos-systemd](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util).
 Many scripts source [drain_helpers](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/lib/drain_helpers.sh) but all source [lock_helpers](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/lib/lock_helpers.sh).
 
-##### [update-os.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/update-os.sh)
- - Single run fleet units that trigger the update-os.sh on each node.  Currently, that amounts to touching /var/lib/skopos/needs_reboot
+##### [skopos.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/skopos.sh)
+ - Single run fleet units that trigger the skopos.sh on each node.  Currently, that amounts to touching /var/lib/skopos/needs_reboot
  
  - Triggers on fleet, systemd unit per worker node
    ```
@@ -217,7 +217,7 @@ To use this with docker, you get the pid and process tree of the image report vi
 ## Process
 This section gives an overview of important processes.
 
-### [update-os.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/update-os.sh)
+### [skopos.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/skopos.sh)
 The main process mediates system reboots primarily due to CoreOS updates.
 
 - If the current node holds the cluster-wide reboot lock on service startup:
@@ -237,17 +237,17 @@ The main process mediates system reboots primarily due to CoreOS updates.
 > Note: it is *very* important that the node re-establish itself *after* reboot *before* unlock reboot.
 
 ### [drain.sh](http://github.com/f4tq/ethos-systemd/tree/feature/drain-submission/v1/util/drain.sh) script
-CLI with mulitple options available for standalone use.  It's primary callers are update-os.sh and booster-drain.sh.
+CLI with mulitple options available for standalone use.  It's primary callers are skopos.sh and booster-drain.sh.
 
 #### options
 
 ##### drain
-The primary option.  This script usually called by booster-drain.sh or update-os.sh.
+The primary option.  This script usually called by booster-drain.sh or skopos.sh.
 The *drain* takes optional value that which gets used as the host lock value by etcd-locks.  It is useful to use a verb to describe what called for drain.   drain values:
 - *DRAIN*
 The default.
 - *REBOOT*
-Value passed by update-os.sh when invoking `drain.sh drain REBOOT`
+Value passed by skopos.sh when invoking `drain.sh drain REBOOT`
 - *BOOSTER*
 Value passed by booster-drain.sh.  Ex. `drain.sh drain BOOSTER`
 
@@ -308,7 +308,7 @@ core@ip-172-16-26-239 ~ $ sudo ethos-systemd/v1/util/drain.sh connections
 ```
 
 ### booster_drain.sh
-- Follows a similar process to update-os.sh except that it needn't consider rebooting and reversing any action taken as it's action is end of life for the host.
+- Follows a similar process to skopos.sh except that it needn't consider rebooting and reversing any action taken as it's action is end of life for the host.
 
 - Acquire the cluster-wide *booster_drain* lock
 - Call drain.sh with 'BOOSTER'
@@ -333,18 +333,18 @@ locust is stood up in master-slave mode on the control tiers.
 # Troubleshooting
 All the following commands are performed with ansible
 
-### Start update-os.sh with fleet
+### Start skopos.sh with fleet
 ```
 ansible coreos_control -i $INVENTORY  -m raw -a 'bash -c "set -x ; LOCALIP=$(curl -sS http://169.254.169.254/latest/meta-data/local-ipv4);  ( etcdctl member list  | grep \$LOCALIP | grep -q isLeader=true ) && fleetctl start update-os.service" '
 ```
 
-### Stop update-os.sh with fleet
+### Stop skopos.sh with fleet
 ```
 ansible coreos_control -i $INVENTORY  -m raw -a 'bash -c "set -x ; LOCALIP=$(curl -sS http://169.254.169.254/latest/meta-data/local-ipv4);  ( etcdctl member list  | grep \$LOCALIP | grep -q isLeader=true ) && fleetctl stop update-os.service" '
 ```
 
 ### Reset all locks, iptables wrt skopos
-Stop update-os.sh first
+Stop skopos.sh first
 ```
 ansible coreos_control:coreos_workers -i $INVENTORY  -m raw -a 'bash -c "rm -f /var/lib/skopos/needs_reboot; iptables -F SKOPOS; ethos-systemd/v1/util/mesos_up.sh; ethos-systemd/v1/util/lockctl.sh unlock_reboot; ethos-systemd/v1/util/lockctl.sh unlock_host REBOOT"'  -s
 ```
@@ -369,43 +369,43 @@ Here is an active, healthy drain with one node complete, one in progress, and 3 
 ```
 ortescu@vagrant:~/ethos-projects/f4tq-aug2016-drain$ ansible coreos_workers -i $INVENTORY  -m raw -a 'bash -c "journalctl -u update-os.service --no-pager  | tail -5 "'
 10.74.131.125 | SUCCESS | rc=0 >>
-Sep 09 05:45:10 ip-10-74-131-125.ec2.internal update-os.sh[18345]: [1473399910][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
-Sep 09 05:45:33 ip-10-74-131-125.ec2.internal update-os.sh[18345]: Error locking: semaphore is at 0
-Sep 09 05:45:33 ip-10-74-131-125.ec2.internal update-os.sh[18345]: [1473399933][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
-Sep 09 05:45:56 ip-10-74-131-125.ec2.internal update-os.sh[18345]: Error locking: semaphore is at 0
-Sep 09 05:45:56 ip-10-74-131-125.ec2.internal update-os.sh[18345]: [1473399956][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:10 ip-10-74-131-125.ec2.internal skopos.sh[18345]: [1473399910][/home/core/ethos-systemd/v1/util/skopos.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:33 ip-10-74-131-125.ec2.internal skopos.sh[18345]: Error locking: semaphore is at 0
+Sep 09 05:45:33 ip-10-74-131-125.ec2.internal skopos.sh[18345]: [1473399933][/home/core/ethos-systemd/v1/util/skopos.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:56 ip-10-74-131-125.ec2.internal skopos.sh[18345]: Error locking: semaphore is at 0
+Sep 09 05:45:56 ip-10-74-131-125.ec2.internal skopos.sh[18345]: [1473399956][/home/core/ethos-systemd/v1/util/skopos.sh] update-os|Can't get reboot lock. sleeping
 
 
 10.74.131.147 | SUCCESS | rc=0 >>
-Sep 09 05:44:04 ip-10-74-131-147.ec2.internal update-os.sh[4055]: [1473399844][/home/core/ethos-systemd/v1/util/update-os.sh] Waiting for mesos http://10.74.131.147:5051/state to pass before freeing cluster-wide reboot lock
-Sep 09 05:44:05 ip-10-74-131-147.ec2.internal update-os.sh[4055]: [1473399845][/home/core/ethos-systemd/v1/util/update-os.sh] Waiting for mesos http://10.74.131.147:5051/state to pass before freeing cluster-wide reboot lock
-Sep 09 05:44:06 ip-10-74-131-147.ec2.internal update-os.sh[4055]: [1473399846][/home/core/ethos-systemd/v1/util/update-os.sh] Waiting for mesos http://10.74.131.147:5051/state to pass before freeing cluster-wide reboot lock
-Sep 09 05:44:07 ip-10-74-131-147.ec2.internal update-os.sh[4055]: [1473399847][/home/core/ethos-systemd/v1/util/update-os.sh] mesos/up Unlocking cluster reboot lock
-Sep 09 05:44:36 ip-10-74-131-147.ec2.internal update-os.sh[4055]: [1473399876][/home/core/ethos-systemd/v1/util/update-os.sh] finished update process.  everything normal ...
+Sep 09 05:44:04 ip-10-74-131-147.ec2.internal skopos.sh[4055]: [1473399844][/home/core/ethos-systemd/v1/util/skopos.sh] Waiting for mesos http://10.74.131.147:5051/state to pass before freeing cluster-wide reboot lock
+Sep 09 05:44:05 ip-10-74-131-147.ec2.internal skopos.sh[4055]: [1473399845][/home/core/ethos-systemd/v1/util/skopos.sh] Waiting for mesos http://10.74.131.147:5051/state to pass before freeing cluster-wide reboot lock
+Sep 09 05:44:06 ip-10-74-131-147.ec2.internal skopos.sh[4055]: [1473399846][/home/core/ethos-systemd/v1/util/skopos.sh] Waiting for mesos http://10.74.131.147:5051/state to pass before freeing cluster-wide reboot lock
+Sep 09 05:44:07 ip-10-74-131-147.ec2.internal skopos.sh[4055]: [1473399847][/home/core/ethos-systemd/v1/util/skopos.sh] mesos/up Unlocking cluster reboot lock
+Sep 09 05:44:36 ip-10-74-131-147.ec2.internal skopos.sh[4055]: [1473399876][/home/core/ethos-systemd/v1/util/skopos.sh] finished update process.  everything normal ...
 
 
 10.74.131.145 | SUCCESS | rc=0 >>
-Sep 09 05:45:08 ip-10-74-131-145.ec2.internal update-os.sh[29070]: [1473399908][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
-Sep 09 05:45:31 ip-10-74-131-145.ec2.internal update-os.sh[29070]: Error locking: semaphore is at 0
-Sep 09 05:45:31 ip-10-74-131-145.ec2.internal update-os.sh[29070]: [1473399931][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
-Sep 09 05:45:54 ip-10-74-131-145.ec2.internal update-os.sh[29070]: Error locking: semaphore is at 0
-Sep 09 05:45:54 ip-10-74-131-145.ec2.internal update-os.sh[29070]: [1473399954][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:08 ip-10-74-131-145.ec2.internal skopos.sh[29070]: [1473399908][/home/core/ethos-systemd/v1/util/skopos.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:31 ip-10-74-131-145.ec2.internal skopos.sh[29070]: Error locking: semaphore is at 0
+Sep 09 05:45:31 ip-10-74-131-145.ec2.internal skopos.sh[29070]: [1473399931][/home/core/ethos-systemd/v1/util/skopos.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:54 ip-10-74-131-145.ec2.internal skopos.sh[29070]: Error locking: semaphore is at 0
+Sep 09 05:45:54 ip-10-74-131-145.ec2.internal skopos.sh[29070]: [1473399954][/home/core/ethos-systemd/v1/util/skopos.sh] update-os|Can't get reboot lock. sleeping
 
 
 10.74.131.177 | SUCCESS | rc=0 >>
-Sep 09 05:46:08 ip-10-74-131-177.ec2.internal update-os.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_count: task_id phpinfo.phpinfo-server.cfortier--phpinfo---a----6d60311c-7579-11e6-b401-0acf33af2b2d.28881c02-7618-11e6-9c1b-5a3124ecbb2f has 0 connections
-Sep 09 05:46:08 ip-10-74-131-177.ec2.internal update-os.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_by_task_Id: loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.2887f4f0-7618-11e6-9c1b-5a3124ecbb2f docker pid: 10463 network mode: bridge
-Sep 09 05:46:08 ip-10-74-131-177.ec2.internal update-os.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_count: task_id loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.2887f4f0-7618-11e6-9c1b-5a3124ecbb2f has 1 connections
-Sep 09 05:46:08 ip-10-74-131-177.ec2.internal update-os.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_by_task_Id: loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.17277364-7619-11e6-9c1b-5a3124ecbb2f docker pid: 12167 network mode: bridge
-Sep 09 05:46:08 ip-10-74-131-177.ec2.internal update-os.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_count: task_id loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.17277364-7619-11e6-9c1b-5a3124ecbb2f has 1 connections
+Sep 09 05:46:08 ip-10-74-131-177.ec2.internal skopos.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_count: task_id phpinfo.phpinfo-server.cfortier--phpinfo---a----6d60311c-7579-11e6-b401-0acf33af2b2d.28881c02-7618-11e6-9c1b-5a3124ecbb2f has 0 connections
+Sep 09 05:46:08 ip-10-74-131-177.ec2.internal skopos.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_by_task_Id: loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.2887f4f0-7618-11e6-9c1b-5a3124ecbb2f docker pid: 10463 network mode: bridge
+Sep 09 05:46:08 ip-10-74-131-177.ec2.internal skopos.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_count: task_id loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.2887f4f0-7618-11e6-9c1b-5a3124ecbb2f has 1 connections
+Sep 09 05:46:08 ip-10-74-131-177.ec2.internal skopos.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_by_task_Id: loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.17277364-7619-11e6-9c1b-5a3124ecbb2f docker pid: 12167 network mode: bridge
+Sep 09 05:46:08 ip-10-74-131-177.ec2.internal skopos.sh[14725]: [1473399968][/home/core/ethos-systemd/v1/util/drain.sh] get_connection_count: task_id loadtest.loadtesta.f4tq--dcos-tests---v0.2----82f24dd7-7579-11e6-8eeb-12a45d8fa6ad.17277364-7619-11e6-9c1b-5a3124ecbb2f has 1 connections
 
 
 10.74.131.165 | SUCCESS | rc=0 >>
-Sep 09 05:45:08 ip-10-74-131-165.ec2.internal update-os.sh[316]: [1473399908][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
-Sep 09 05:45:31 ip-10-74-131-165.ec2.internal update-os.sh[316]: Error locking: semaphore is at 0
-Sep 09 05:45:31 ip-10-74-131-165.ec2.internal update-os.sh[316]: [1473399931][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
-Sep 09 05:45:54 ip-10-74-131-165.ec2.internal update-os.sh[316]: Error locking: semaphore is at 0
-Sep 09 05:45:54 ip-10-74-131-165.ec2.internal update-os.sh[316]: [1473399954][/home/core/ethos-systemd/v1/util/update-os.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:08 ip-10-74-131-165.ec2.internal skopos.sh[316]: [1473399908][/home/core/ethos-systemd/v1/util/skopos.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:31 ip-10-74-131-165.ec2.internal skopos.sh[316]: Error locking: semaphore is at 0
+Sep 09 05:45:31 ip-10-74-131-165.ec2.internal skopos.sh[316]: [1473399931][/home/core/ethos-systemd/v1/util/skopos.sh] update-os|Can't get reboot lock. sleeping
+Sep 09 05:45:54 ip-10-74-131-165.ec2.internal skopos.sh[316]: Error locking: semaphore is at 0
+Sep 09 05:45:54 ip-10-74-131-165.ec2.internal skopos.sh[316]: [1473399954][/home/core/ethos-systemd/v1/util/skopos.sh] update-os|Can't get reboot lock. sleeping
 
 ```	
 

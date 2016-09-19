@@ -74,18 +74,6 @@ protect_from_autoscaler(){
 	    error_log "releasing reboot lock held by dead node"
 	    unlock_reboot ${reboot_holder}
 	fi
-    else
-	reboot_holder="$(reboot_state)"
-	if [ ! -z "${reboot_holder}" ]; then
-	    # make sure the
-	    if [ 0 -eq $(etcdctl ls --recursive /_coreos.com/fleet/machines | grep object | grep -c "${reboot_holder}") ]; then
-		error_log "WARNING: forcible trying to unlock rebook lock.  holder machine (${reboot_holder}) no longer exists.  Something killed the host"
-		unlock_reboot ${reboot_holder}
-		if [ $? -eq 0 ]; then
-		    error_log "Good News:  I was able to releash reboot_lock.  holder machine (${reboot_holder}) no longer exists.  Something must killed the host"
-		fi
-	    fi
-	fi
     fi
 }
 
