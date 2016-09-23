@@ -23,7 +23,9 @@ As docker provides a means to create user defined networks that can be wholey is
 > Due to mesos 0.27 maintenance API issues, the graceful shutdown (full draining) is unsupported in this release.  However orderly draining of the proxy and control tiers is supported
 
 - Scale down operations supported (booster draining) are an end of life task for the host.
-- Inbounds connections to mesos, mediated by a balancer with a least 2 instances running on different nodes, are supported by this process for tapering and elimination. 
+- Inbounds connections to marathon orchestrated apps, should be mediated by a balancer with a least 2 instances running on different nodes, are supported by this process for tapering and elimination.
+> Inbound connection timeouts should ideally be set to 60 secs but no more than 300 seconds
+
 - Outbound connections are the responsibilty of the app instance.  However, the drain process accommodates that shutdown by sending SIGTERM (via docker stop) then waits 300 seconds before sending SIGKILL (via docker kill).
 
 > marathon-lb supports docker instance labeling that, in the future, be used to control the time between `SIGTERM` and `SIGKILL`
