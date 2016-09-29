@@ -54,6 +54,20 @@ core@coreos:/home/core $ sudo ethos-systemd/v1/util/launch_booster_drain.sh
 ```
 For cluster wide control, use ansible and see `Running` below
 
+## Flow
+Console Trigger
+![Console Trigger](https://f4tq.github.io/images/coreos_console_trigger.svg)
+
+Skopos
+![Skopos](https://f4tq.github.io/images/skopos.svg)
+
+App
+![App](https://f4tq.github.io/images/app_deploy.svg)
+
+Locust
+![Locust](https://f4tq.github.io/images/locust.svg)
+
+
 ## Components
 ### Standard components
 - etcd
