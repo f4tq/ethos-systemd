@@ -10,7 +10,7 @@ User=core
 Type=oneshot
 RemainAfterExit=false
 
-ExecStartPre=/usr/bin/systemctl is-active update-os.service
+ExecStartPre=/usr/bin/systemctl is-active update-os.timer
 ExecStartPre=/usr/bin/sh -c "source /etc/profile.d/etcdctl.sh"
 
 ExecStart=/usr/bin/bash -c "source /etc/profile.d/etcdctl.sh && \
