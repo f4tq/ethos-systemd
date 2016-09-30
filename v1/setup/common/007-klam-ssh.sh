@@ -124,7 +124,7 @@ cat /opt/klam/lib/klam-ssh.conf
 #  update /etc/ssh/sshd_config if necessary
 if ! grep /opt/klam/lib/authorizedkeys_command.sh /etc/ssh/sshd_config; then
   cp /etc/ssh/sshd_config sshd_config
-  echo 'AuthorizedKeysCommand /opt/klam/lib/authorizedkeys_command.sh' >> sshd_config
+  echo -e '\nAuthorizedKeysCommand /opt/klam/lib/authorizedkeys_command.sh' >> sshd_config
   echo 'AuthorizedKeysCommandUser root' >> sshd_config
   mv -f sshd_config /etc/ssh/sshd_config
 fi

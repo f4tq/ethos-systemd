@@ -1,17 +1,17 @@
 [Unit]
-Description=Booster Queue Control
+Description=Booster Sidekick Control
 Requires=docker.service
 After=docker.service bootstrap.service
 
 [Service]
 User=core
 Restart=on-failure
-Environment="IMAGE=etcdctl get /images/booster-queue"
+Environment="IMAGE=etcdctl get /images/booster-sidekick"
 
 ExecStartPre=/usr/bin/sh -c "/usr/bin/docker pull $($IMAGE)"
 
-ExecStartPre=-/usr/bin/docker kill booster-queue
-ExecStartPre=-/usr/bin/docker rm booster-queue
+ExecStartPre=-/usr/bin/docker kill booster-sidekick
+ExecStartPre=-/usr/bin/docker rm booster-sidekick
 ExecStart=/usr/bin/sh -c "/usr/bin/docker run \
   -e DB_DATABASE=booster \
   -e DB_ENGINE=`etcdctl get /flight-director/config/db-engine` \
@@ -20,10 +20,10 @@ ExecStart=/usr/bin/sh -c "/usr/bin/docker run \
   -e DB_USERNAME=`etcdctl get /flight-director/config/db-username` \
   -e PORT=2043 \
   -p 2043:2043 \
-  --name booster-queue \
+  --name booster-sidekick \
   $($IMAGE)"
 
-ExecStop=-/usr/bin/docker stop booster-queue
+ExecStop=-/usr/bin/docker stop booster-sidekick
 
 [Install]
 WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+[Unit]
+Description=run chronos job cleanup
+Wants=chronos-cleanup.timer
+
+[Service]
+User=core
+Restart=on-failure
+RestartSec=60
+TimeoutStartSec=0
+ExecStartPre=/usr/bin/systemctl is-active chronos@*
+ExecStart=/usr/bin/sudo bash /home/core/ethos-systemd/v1/util/chronos-cleanup.sh
+
+[Install]
+WantedBy=multi-user.target
+
+[X-Fleet]
+Global=false
+MachineMetadata=role=control

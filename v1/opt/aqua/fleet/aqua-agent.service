@@ -1,7 +1,8 @@
 [Unit]
-Description=AquaAgent
+Description=Aqua-Security
 After=docker.service bootstrap.service
 Requires=docker.service
+
 
 [Service]
 EnvironmentFile=/etc/environment
@@ -10,21 +11,25 @@ Environment="IMAGE=etcdctl get /images/scalock-agent"
 Environment="SCALOCK_GATEWAY_ENDPOINT=etcdctl get /aqua/config/gateway-host"
 
 User=core
-Type=oneshot
+Restart=always
 TimeoutStartSec=10m
 
 ExecStartPre=/usr/bin/systemctl is-active update-os.timer
 ExecStartPre=/usr/bin/sh -c  "if [[ -f /etc/profile.d/etcdctl.sh ]]; then source /etc/profile.d/etcdctl.sh;fi && \
 docker pull $($IMAGE)"
-
-ExecStart=/usr/bin/bash -c  "if [[ -f /etc/profile.d/etcdctl.sh ]]; then source /etc/profile.d/etcdctl.sh;fi && \
-sudo docker run --rm --name aqua-agent \
+ExecStartPre=-/usr/bin/docker rm aqua-launcher
+ExecStartPre=-/usr/bin/docker pull behance/aqua-launcher
+ExecStartPre=/usr/bin/bash -c  "if [[ -f /etc/profile.d/etcdctl.sh ]]; then source /etc/profile.d/etcdctl.sh;fi && \
+sudo docker run --name=aqua-launcher -v /var/run/docker.sock:/var/run/docker.sock \
 -e SCALOCK_SERVER=$($SCALOCK_GATEWAY_ENDPOINT) \
 -e SCALOCK_TOKEN=$($SCALOCK_TOKEN)  \
--e SILENT=yes  \
--v /var/run/docker.sock:/var/run/docker.sock  $($IMAGE)"
+-e SCALOCK_IMAGE=$($IMAGE) \
+behance/aqua-launcher /opt/aqua/aqua_launcher.sh install"
 
-ExecStop=-/usr/bin/docker stop aqua-agent
+ExecStart=/usr/bin/bash -c  "if [[ -f /etc/profile.d/etcdctl.sh ]]; then source /etc/profile.d/etcdctl.sh;fi && \
+sudo docker run -v /var/run/docker.sock:/var/run/docker.sock behance/aqua-launcher /opt/aqua/aqua_launcher.sh monitor"
+
+ExecStop=/usr/bin/docker stop aqua-launcher
 
 [Install]
 WantedBy=multi-user.target

@@ -1,0 +1,23 @@
+[Unit]
+Description=SELinux @ %i
+After=docker.service bootstrap.service
+Requires=docker.service
+
+[Service]
+EnvironmentFile=/etc/environment
+
+User=core
+Type=oneshot
+RemainAfterExit=false
+
+ExecStartPre=/usr/bin/systemctl is-active update-os.service
+ExecStartPre=/usr/bin/sh -c "source /etc/profile.d/etcdctl.sh"
+
+ExecStart=/usr/bin/bash -c "source /etc/profile.d/etcdctl.sh && \
+if [[ \"$(etcdctl get /environment/services |grep sumologic)\" != *sumologic* ]]; then sudo /home/core/ethos-systemd/v1/util/selinux.sh;fi"
+
+
+[X-Fleet]
+Global=false
+MachineMetadata=role=worker
+MachineMetadata=ip=%i

@@ -28,7 +28,6 @@ ExecStartPre=-/usr/bin/docker rm booster
 ExecStart=/usr/bin/sh -c "/usr/bin/docker run \
   --name booster \
   --net=host \
-  -e BOOSTER_ENABLED=$(etcdctl get /booster/config/enabled) \
   -e BOOSTER_NO_PERSISTENCE=$(etcdctl get /booster/config/nopersistence) \
   -e BOOSTER_DB_HOST=$(etcdctl get /flight-director/config/db-path | cut -d: -f1) \
   -e BOOSTER_DB_USER=$(etcdctl get /flight-director/config/db-username) \
@@ -38,6 +37,7 @@ ExecStart=/usr/bin/sh -c "/usr/bin/docker run \
   -e BOOSTER_ROLES=control_tier \
   -e BOOSTER_NODES=$(etcdctl ls /booster/nodes | cut -d'/' --complement -s -f-3 | tr '\n' ',') \
   -e BOOSTER_QUEUE_URI=http://$(etcdctl get /environment/CONTROL_ELB):2043 \
+  -e BOOSTER_CLUSTER_SCALE_URI=http://$(etcdctl get /environment/CONTROL_ELB):2043 \
   -e FD_URI=http://$(etcdctl get /environment/CONTROL_ELB):2001 \
   $($IMAGE)"
 

@@ -1,0 +1,28 @@
+[Unit]
+Description=Update journalD pos of logs sent to fluentD
+After=journald-fluentd.service
+
+[Service]
+Restart=always
+RestartSec=30s
+
+# Get CoreOS environmental variables
+EnvironmentFile=/etc/environment
+Environment="JOURNALD_POS=etcdctl get /logging/config/journald-pos-file"
+
+# lets go through and update our stored position in the journal.  This will
+# lead to some duplicates being sent, but that is fine as we can clean them
+# up upstream.  Dups aren't the end of the world; but losing data is!
+ExecStart=/bin/bash -c "\
+  if [[ -f /etc/profile.d/etcdctl.sh ]]; then source /etc/profile.d/etcdctl.sh; fi; \
+  while true; do \
+    logger -t \"fluentd\" \"updating journalD position\"; \
+    last_line=$(journalctl -r -n 1 -o json); \
+    sleep 5s; \
+    echo $last_line | awk \'{print $4}\' | cut -d\\\" -f2 > $($JOURNALD_POS); \
+    sleep 1m; \
+  done; "
+
+[X-Fleet]
+Global=true
+MachineMetadata=role=worker

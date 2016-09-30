@@ -1,0 +1,17 @@
+[Unit]
+Description=Chronos Job Cleanup
+Requires=chronos-cleanup.service
+
+[Install]
+WantedBy=multi-user.target
+
+[Timer]
+# run 10 minutes after boot
+OnBootSec=10min
+# run every 8 hours
+OnUnitActiveSec=8h
+
+[X-Fleet]
+Global=False
+MachineOf=chronos-cleanup.service
+MachineMetadata=role=control
