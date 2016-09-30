@@ -7,7 +7,7 @@ LEADER="false"
 source /etc/environment || :
 
 echo "-------Beginning Bootstrap Script: $VERSION-------"
-
+sudo chown root:docker /var/run/docker.sock
 # Setup profile.d
 sudo mkdir /etc/profile.d || :
 sudo cp ${SCRIPTDIR}/$VERSION/profile.d/* /etc/profile.d/. 2>/dev/null || :

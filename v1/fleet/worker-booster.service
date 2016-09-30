@@ -9,7 +9,6 @@ User=core
 Restart=on-failure
 Environment="IMAGE=etcdctl get /images/booster"
 
-ExecStartPre=/home/core/ethos-systemd/v1/opt/aqua/util/aqua-agent-health.sh
 ExecStartPre=/usr/bin/bash -c "[ -f /home/core/.dockercfg ] || exit 1"
 ExecStartPre=/usr/bin/bash -c "[ -f /opt/mesos/credentials ] || exit 1"
 ExecStartPre=/usr/bin/sh -c ". /etc/profile.d/etcdctl.sh && docker pull $($IMAGE)"

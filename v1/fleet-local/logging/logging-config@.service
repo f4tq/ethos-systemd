@@ -1,0 +1,51 @@
+[Unit]
+Description=Logging Config @ %i
+After=docker.service
+Requires=docker.service
+Before=splunk-fluentd@%i.service
+
+[Service]
+User=core
+Restart=on-failure
+RestartSec=20
+TimeoutStartSec=0
+EnvironmentFile=/etc/environment
+Environment="IMAGE=etcdctl get /images/logging-config"
+Environment="SPLUNK_TOKEN=etcdctl get /splunk/config/hec/token"
+Environment="SPLUNK_ENDPOINT=etcdctl get /splunk/config/hec/endpoint"
+Environment="SPLUNK_DEFAULT_INDEX=etcdctl get /splunk/config/hec/default-index"
+Environment="CONTROL_ELB=etcdctl get /environment/CONTROL_ELB"
+Environment="MARATHON_USER=etcdctl get /marathon/config/username"
+Environment="MARATHON_PASSWORD=etcdctl get /marathon/config/password"
+Environment="LABEL_INDEX=etcdctl get /splunk/config/label-index"
+Environment="LABEL_SOURCETYPE=etcdctl get /splunk/config/label-sourcetype"
+Environment="LABEL_VOLUME=etcdctl get /splunk/config/label-volume"
+Environment="LABEL_TYPE=etcdctl get /splunk/config/label-type"
+Environment="SPLUNK_HEAVYFORWARDER_ENDPOINT=etcdctl get /splunk/config/heavyforwarder-endpoint"
+ExecStartPre=/usr/bin/sh -c "source /etc/profile.d/etcdctl.sh && docker pull $($IMAGE)"
+ExecStartPre=-/usr/bin/docker kill logging-config
+ExecStartPre=-/usr/bin/docker rm logging-config
+
+# NOTE: it's critical to source the etcdctl.sh file so that etcd connects to the correct cluster.
+ExecStart=/usr/bin/sh -c "source /etc/profile.d/etcdctl.sh && \
+  docker run --name logging-config \
+    -e CONTROL_ELB=$($CONTROL_ELB) \
+    -e SPLUNK_ENDPOINT=$($SPLUNK_ENDPOINT) \
+	-e SPLUNK_HEAVYFORWARDER_ENDPOINT=$($SPLUNK_HEAVYFORWADER_ENDPOINT) \
+    -e SPLUNK_DEFAULT_ENDPOINT=$($SPLUNK_DEFAULT_INDEX) \
+    -e SPLUNK_TOKEN=$($SPLUNK_TOKEN) \
+    -e MARATHON_USER=$($MARATHON_USER) \
+    -e MARATHON_PASSWORD=$($MARATHON_PASSWORD) \
+	-e LABEL_INDEX=$(LABEL_INDEX)
+	-e LABEL_SOURCETYPE=$(LABEL_SOURCETYPE)
+	-e LABEL_VOLUME=$(LABEL_VOLUME)
+	-e LABEL_TYPE=$(LABEL_)
+    -e PROTOCOL_MARATHON="http" \
+    -e POLLER_FREQUENCY=10 \
+    $($IMAGE)"
+
+ExecStop=-/usr/bin/docker stop logging-config
+
+[X-Fleet]
+Global=false
+MachineMetadata=role=logging

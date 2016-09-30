@@ -1,7 +1,7 @@
 # https://raw.githubusercontent.com/DataDog/docker-dd-agent/master/dd-agent.service
 # make sure the etcd /datadog/config/api-key is set!
 [Unit]
-Description=Datadog Agent for Mesos slave
+Description=Datadog Agent for Ethos logging host
 After=docker.service bootstrap.service
 
 [Service]
@@ -14,10 +14,10 @@ User=core
 Restart=always
 TimeoutStartSec=0
 ExecStartPre=/usr/bin/sh -c "source /etc/profile.d/etcdctl.sh && docker pull $($IMAGE)"
-ExecStartPre=-/usr/bin/docker kill dd-agent-worker
-ExecStartPre=-/usr/bin/docker rm -f dd-agent-worker
+ExecStartPre=-/usr/bin/docker kill dd-agent-logging
+ExecStartPre=-/usr/bin/docker rm -f dd-agent-logging
 ExecStart=/usr/bin/bash -c \
-"if [[ -f /etc/profile.d/etcdctl.sh ]]; then source /etc/profile.d/etcdctl.sh;fi && sudo -E /usr/bin/docker run --name dd-agent-worker -h `hostname` \
+"if [[ -f /etc/profile.d/etcdctl.sh ]]; then source /etc/profile.d/etcdctl.sh;fi && sudo -E /usr/bin/docker run --name dd-agent-logging -h `hostname` \
 -p 8125:8125/udp \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /proc/:/host/proc/:ro \
@@ -25,10 +25,10 @@ ExecStart=/usr/bin/bash -c \
 -e API_KEY=`etcdctl get /datadog/config/api-key` \
 -e HOST_IP=`hostname -i` \
 -e STACK_NAME=$STACK_NAME \
--e DD_TIER=worker \
+-e DD_TIER=logging \
 $($IMAGE)"
-ExecStop=/usr/bin/docker stop dd-agent-worker
+ExecStop=/usr/bin/docker stop dd-agent-logging
 
 [X-Fleet]
 Global=true
-MachineMetadata=role=worker
+MachineMetadata=role=logging

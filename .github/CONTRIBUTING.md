@@ -1,6 +1,6 @@
 # Contributing to ethos-systemd 
 
-The following is a set of guidelines for contributing to ethos-systemd (a part of [Ethos Infrastructure](https://github.com/adobe-platform/infrastructure) and [Adobe Platform](https://github.com/adobe-platform) organization on GitHub.
+The following is a set of guidelines for contributing to ethos-systemd (a part of [Ethos Infrastructure](https://git.corp.adobe.com/adobe-platform/infrastructure) and [Adobe Platform](https://github.com/adobe-platform) organization on GitHub.
 
 ## Making Changes
 
@@ -10,7 +10,7 @@ Please follow the following steps to begin working on your changes:
 - Add this repository as an upstream remote (`git remote add upstream git@github.com:adobe-platform/ethos-systemd.git`).
    - You may use a branch but to do so you must change your infrastructure related control/proxy/worker.json as follows:
 ```
-cd /home/core && rm -rf ethos-systemd && git clone https://github.com/myfork/ethos-systemd && cd /home/core/ethos-systemd && git checkout -b worker origin/worker && ./init v3
+cd /home/core && rm -rf ethos-systemd && git clone https://github.com/myfork/ethos-systemd && cd /home/core/ethos-systemd && git checkout -b worker origin/worker && ./init
 ``` 
 
 - Make your changes.

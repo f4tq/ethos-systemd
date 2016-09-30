@@ -1,0 +1,43 @@
+[Unit]
+Description=Logging Config @ %i
+After=docker.service
+Requires=docker.service
+Before=splunk-fluentd@%i.service
+
+[Service]
+User=core
+Restart=on-failure
+RestartSec=20
+TimeoutStartSec=0
+EnvironmentFile=/etc/environment
+Environment="IMAGE=etcdctl get /images/logging-config"
+Environment="CONTROL_ELB=etcdctl get /environment/CONTROL_ELB"
+Environment="LABEL_INDEX=etcdctl get /splunk/config/label-index"
+Environment="LABEL_SOURCETYPE=etcdctl get /splunk/config/label-sourcetype"
+Environment="LABEL_VOLUME=etcdctl get /splunk/config/label-volume"
+Environment="LABEL_TYPE=etcdctl get /splunk/config/label-type"
+Environment="SPLUNK_HEAVYFORWARDER_ENDPOINT=etcdctl get /splunk/config/heavyforwarder-endpoint"
+Environment="SPLUNK_HEAVYFORWARDER_AUTH=etcdctl get /splunk/config/heavyforwarder-auth"
+Environemnt="POLLER_FREQUENCY=etcdctl get /splunk/config/logging-config/poller-frequency"
+ExecStartPre=/usr/bin/sh -c "source /etc/profile.d/etcdctl.sh && docker pull $($IMAGE)"
+ExecStartPre=-/usr/bin/docker kill logging-config
+ExecStartPre=-/usr/bin/docker rm logging-config
+
+# NOTE: it's critical to source the etcdctl.sh file so that etcd connects to the correct cluster.
+ExecStart=/usr/bin/sh -c "source /etc/profile.d/etcdctl.sh && \
+  docker run --name logging-config \
+  -e CONTROL_ELB=$($CONTROL_ELB) \
+  -e SPLUNK_HEAVYFORWARDER_ENDPOINT=$($SPLUNK_HEAVYFORWADER_ENDPOINT) \
+  -e SPLUNK_HEAVYFORWARDER_AUTH=$($SPLUNK_HEAVYFORWADER_AUTH) \
+  -e LABEL_INDEX=$($LABEL_INDEX) \
+  -e LABEL_SOURCETYPE=$($LABEL_SOURCETYPE) \
+  -e LABEL_VOLUME=$($LABEL_VOLUME) \
+  -e LABEL_TYPE=$($LABEL_TYPE) \
+  -e POLLER_FREQUENCY=$($POLLER_FREQUENCY) \
+  $($IMAGE)"
+
+ExecStop=-/usr/bin/docker stop logging-config
+
+[X-Fleet]
+Global=false
+MachineMetadata=role=logging

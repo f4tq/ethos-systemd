@@ -1,0 +1,29 @@
+[Unit]
+Description=FluentD Log Forwarding Service
+
+Requires=docker.service
+After=docker.service
+
+[Service]
+TimeoutStartSec=10m
+TimeoutStopSec=90s
+
+Restart=always
+RestartSec=10s
+
+# Get CoreOS environmental variables
+EnvironmentFile=/etc/environment
+Environment="IMAGE=etcdctl get /images/fluentd"
+
+
+ExecStartPre=/usr/bin/sh -c "source /etc/profile.d/etcdctl.sh && docker pull $($IMAGE)"
+ExecStartPre=-/usr/bin/docker kill fluentd-forwarder
+ExecStartPre=-/usr/bin/docker rm -f fluentd-forwarder
+ExecStart=/home/core/ethos-systemd/v1/util/fluentd-forwarder.sh
+
+ExecStop=/usr/bin/docker stop -t 10 fluentd-forwarder
+ExecStop=/usr/bin/docker rm fluentd-forwarder
+
+[X-Fleet]
+Global=true
+MachineMetadata=role=worker

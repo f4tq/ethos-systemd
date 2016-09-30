@@ -16,21 +16,21 @@ echo "-------Leader node, beginning writing all default values to etcd-------"
 etcd-set /images/secrets-downloader     "index.docker.io/behance/docker-aws-secrets-downloader:v1.1.0"
 etcd-set /images/klam-ssh               "index.docker.io/behance/klam-ssh:v1"
 
-etcd-set /images/chronos                "index.docker.io/mesosphere/chronos:chronos-2.4.0-0.1.20150828104228.ubuntu1404-mesos-0.27.0-0.2.190.ubuntu1404"
-etcd-set /images/flight-director        "index.docker.io/behance/flight-director:a3240d5cec9e69e0a892fb2c8945f776ec455b2f"
-etcd-set /images/marathon               "index.docker.io/mesosphere/marathon:v0.15.1"
-etcd-set /images/mesos-master           "index.docker.io/mesosphere/mesos-master:0.27.0-0.2.190.ubuntu1404"
+etcd-set /images/chronos                "index.docker.io/mesosphere/chronos:chronos-2.5.0-0.1.20160824153434.ubuntu1404-mesos-1.0.0"
+etcd-set /images/flight-director        "index.docker.io/behance/flight-director:8e05dddcb45f70258de4400d22fcbab9afb830f0"
+etcd-set /images/marathon               "index.docker.io/mesosphere/marathon:v1.3.0"
+etcd-set /images/mesos-master           "index.docker.io/mesosphere/mesos-master:1.0.11.0.1-2.0.93.ubuntu1404"
 etcd-set /images/zk-exhibitor           "index.docker.io/behance/docker-zk-exhibitor:v1.0.0"
 etcd-set /images/cfn-signal             "index.docker.io/behance/docker-cfn-bootstrap:v1.0.0"
 etcd-set /images/jenkins                "index.docker.io/jenkins:1.651.1"
-etcd-set /images/booster                "index.docker.io/behance/booster:0.3"
-etcd-set /images/booster-queue          "index.docker.io/behance/booster-queue:0.1"
+etcd-set /images/booster                "index.docker.io/behance/booster:0.4"
+etcd-set /images/booster-sidekick       "index.docker.io/behance/booster-sidekick:0.1"
 
 etcd-set /images/capcom                 "index.docker.io/behance/capcom:3ddcfe360a95adcf97d4e9f3a98f9e59057e55c6"
 etcd-set /images/proxy                  "index.docker.io/nginx:1.9.5"
 etcd-set /images/control-proxy          "index.docker.io/behance/apigateway:v0.0.1"
 
-etcd-set /images/mesos-slave            "index.docker.io/mesosphere/mesos-slave:0.27.0-0.2.190.ubuntu1404"
+etcd-set /images/mesos-slave            "index.docker.io/mesosphere/mesos-slave:1.0.11.0.1-2.0.93.ubuntu1404"
 
 etcd-set /images/etcd-locks              "index.docker.io/adobeplatform/etcd-locks:v0.1"
 
@@ -85,6 +85,9 @@ etcd-set /flight-director/config/authorizer-type airlock
 etcd-set /flight-director/config/iam-role-label com.swipely.iam-docker.iam-profile
 etcd-set /flight-director/config/scaler-protocol http
 etcd-set /flight-director/config/scaler-endpoint localhost:2042
+#This needs to be false for Docker < 1.11. Change to true for newer clusters
+etcd-set /flight-director/config/allow-log-tagging false
+etcd-set /flight-director/config/disable-v1-api false
 
 ######################
 #     ZOOKEEPER
@@ -110,7 +113,6 @@ etcd-set /mesos/config/username ethos
 #       BOOSTER
 ######################
 
-etcd-set /booster/config/enabled 0
 etcd-set /booster/config/nopersistence 1
 
 ######################

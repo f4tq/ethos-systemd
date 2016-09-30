@@ -1,0 +1,3 @@
+### 2016-09-21
+* Added CHANGELOG
+* Updated PULL_REQUEST_TEMPLATE.md

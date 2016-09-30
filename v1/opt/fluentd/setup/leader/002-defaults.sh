@@ -1,0 +1,38 @@
+#!/usr/bin/bash -x
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+source $DIR/../../../../lib/helpers.sh
+source /etc/environment
+
+etcd-set /logging/config/journald-pos-file "/tmp/fluentd_journald.pos"
+etcd-set /logging/config/fluentd-forwarder-port "5170"
+etcd-set /logging/config/fluentd-monitor-port "24220"
+etcd-set /logging/config/fluentd-router-weight "60"
+etcd-set /logging/config/fluentd-ethosplugin-cache-size "5000"
+etcd-set /logging/config/fluentd-ethosplugin-cache-ttl "3600"
+etcd-set /logging/config/fluentd-ethosplugin-get-tag-flag "false"
+etcd-set /logging/config/fluentd-ethosplugin-container-tag "CONTAINER_ID"
+etcd-set /logging/config/fluentd-ethosplugin-logtype-rule 'LOG_TYPE ^(\w+) logtype.$1'
+etcd-set /logging/config/fluentd-httpext-buffer-type "memory"
+etcd-set /logging/config/fluentd-httpext-buffer-queue-limit "64"
+etcd-set /logging/config/fluentd-httpext-buffer-chunk-limit "16m"
+etcd-set /logging/config/fluentd-httpext-flush-interval "5s"
+etcd-set /logging/config/fluentd-httpext-flush-at-shutdown "true"
+etcd-set /logging/config/fluentd-httpext-retry-wait "1s"
+etcd-set /logging/config/fluentd-httpext-max-retry-wait "24h"
+etcd-set /logging/config/fluentd-httpext-retry-limit "17"
+etcd-set /logging/config/fluentd-httpext-disable-retry-limit "false"
+etcd-set /logging/config/fluentd-httpext-splunk-url "https://localhost.local/services/collector"
+etcd-set /logging/config/fluentd-httpext-http-method "post"
+etcd-set /logging/config/fluentd-httpext-serializer "json"
+etcd-set /logging/config/fluentd-httpext-use-ssl "true"
+etcd-set /logging/config/fluentd-httpext-open-timeout ""
+etcd-set /logging/config/fluentd-httpext-read-timeout "60"
+etcd-set /logging/config/fluentd-httpext-rate-limit-msec "0"
+etcd-set /logging/config/fluentd-httpext-raise-on-error "true"
+etcd-set /logging/config/fluentd-httpext-raise-on-http-failure "false"
+etcd-set /logging/config/fluentd-httpext-ignore-http-status-code ""
+etcd-set /logging/config/fluentd-httpext-authentication ""
+etcd-set /logging/config/fluentd-httpext-username ""
+etcd-set /logging/config/fluentd-httpext-password ""
+etcd-set /logging/config/fluentd-httpext-splunk-hec-token "Splunk 12345678-ABCD-1234-EFGH-0123456789AB"
