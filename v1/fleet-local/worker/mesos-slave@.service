@@ -15,7 +15,6 @@ Restart=always
 RestartSec=20
 TimeoutStartSec=0
 
-ExecStartPre=/home/core/ethos-systemd/v1/opt/aqua/util/aqua-agent-health.sh
 ExecStartPre=/usr/bin/systemctl is-active update-os.timer
 # condition / assertion options here for some reason do not prevent the
 # ExecStart from spinning up and mounting / creating .dockercfg/ as a dir

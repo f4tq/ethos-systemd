@@ -1,7 +1,7 @@
 [Unit]
 Description=Booster Worker
 Requires=docker.service
-After=docker.service bootstrap.service
+After=docker.service
 
 [Service]
 TimeoutStartSec=10m

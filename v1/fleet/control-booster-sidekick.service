@@ -1,7 +1,7 @@
 [Unit]
 Description=Booster Sidekick Control
 Requires=docker.service
-After=docker.service bootstrap.service
+After=docker.service
 
 [Service]
 User=core

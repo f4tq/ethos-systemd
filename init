@@ -112,6 +112,14 @@ follower-setup
 
 # TODO: add a pause to wait for fleet to become healthy
 
+function required-units() {
+  echo "-------Beginning REQUIRED fleet submissions needed by general, optional, and specific-units   -------"
+  for unit in $(ls ${SCRIPTDIR}/$VERSION/fleet/required |grep -e '.service$\|.timer$') ; do
+      submit-fleet-unit ${SCRIPTDIR}/$VERSION/fleet/required/${unit}
+      start-fleet-unit ${SCRIPTDIR}/$VERSION/fleet/required/${unit}
+  done
+}
+
 function general-units() {
   echo "-------Beginning general purpose fleet submissions-------"
   for unit in $(ls ${SCRIPTDIR}/$VERSION/fleet|grep -e '.service$\|.timer$')
@@ -198,8 +206,9 @@ function specific-units() {
 }
 
 if [[ "$LEADER" = "true" ]]; then
-  optional-units
-  general-units
+    required-units
+    optional-units
+    general-units
 fi
 
 specific-units
