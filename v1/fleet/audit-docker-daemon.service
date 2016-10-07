@@ -1,0 +1,21 @@
+[Unit]
+Description=Audit Docker Daemon
+Before=bootstrap.service
+After=docker.service
+Requires=docker.service
+
+[Service]
+EnvironmentFile=/etc/environment
+
+User=core
+Type=oneshot
+RemainAfterExit=false
+
+ExecStartPre=/usr/bin/systemctl is-active update-os.service
+
+ExecStart=/usr/bin/bash -c  "if [[ -f /etc/profile.d/etcdctl.sh ]]; then source /etc/profile.d/etcdctl.sh;fi && \
+sudo /home/core/ethos-systemd/v1/util/audit-docker-daemon.sh"
+
+
+[X-Fleet]
+Global=true

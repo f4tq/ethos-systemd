@@ -1,10 +1,11 @@
 [Unit]
-Description=Booster Worker
-Requires=docker.service
-After=docker.service
+Description=Booster Worker @ %i
+Wants=mesos-slave@%i.service
 
 [Service]
-TimeoutStartSec=10m
+TimeoutStartSec=0
+TimeoutStopSec=2
+RestartSec=60
 User=core
 Restart=on-failure
 Environment="IMAGE=etcdctl get /images/booster"
@@ -33,5 +34,6 @@ ExecStop=-/usr/bin/docker stop booster
 WantedBy=multi-user.target
 
 [X-Fleet]
-Global=true
+Global=false
 MachineMetadata=role=worker
+MachineMetadata=ip=%i

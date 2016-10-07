@@ -25,6 +25,9 @@ SPLUNK_HEAVYFORWARDER_DEFAULT_PORT=$(etcd-get /splunk/config/heavyforwarder/defa
 SPLUNK_HEAVYFORWARDER_PROXY_PORT=$(etcd-get /splunk/config/heavyforwarder/proxy-port)
 SPLUNK_HEAVYFORWARDER_FLUENTD_TOKEN=$(etcd-get /splunk/config/heavyforwarder/fluentd-token)
 SPLUNK_HEAVYFORWARDER_SYSTEM_TOKEN=$(etcd-get /splunk/config/heavyforwarder/system-token)
+SPLUNK_ENABLE_SYSLOG_SCRUB=$(etcd-get /splunk/config/heavyforwarder/scrub-syslog)
+SPLUNK_ENABLE_JOURNALD_SCRUB=$(etcd-get /splunk/config/scrub-syslog)
+SPLUNK_SYSLOG_REGEX=$(etcd-get /splunk/config/syslog-scrub-regex)
 
 #create splunk configuration directory
 mkdir -p $SPLUNK_DIR
@@ -41,7 +44,11 @@ _TCP_ROUTING = $DEFAULTGROUP
 EOF
 
 # enable HEC listener for fluentd customer logs cerauth passthrough and journald system logs hec passthrough
-if [ "$SPLUNK_ENABLE_FLUENTD_PROXY" == "1" ] || [ "$SPLUNK_ENABLE_JOURNALD_PROXY" == "1" ]; then
+if [ "$SPLUNK_ENABLE_FLUENTD_PROXY" == "1" ] || [ "$SPLUNK_ENABLE_JOURNALD_PROXY" == "1" ] || [ "$SPLUNK_ENABLE_HEC_FORWARDER" == "1" ]; then
+        #splunk token from fluentd has Splunk appended need to strip this out
+        if [[ $SPLUNK_HEC_TOKEN =~ ^Splunk ]]; then
+                SPLUNK_HEC_TOKEN=`echo $SPLUNK_HEC_TOKEN | sed 's/[splunk| ]//gI'`
+        fi
 cat << EOF >> /$SPLUNK_DIR/inputs.conf
 
 [http]
@@ -82,6 +89,15 @@ cat << EOF > /$SPLUNK_DIR/props.conf
 TRANSFORMS-index = default_index
 TRANSFORMS-sourcetype = default_sourcetype
 EOF
+
+#setup logging scrubbing
+if [ "$SPLUNK_ENABLE_JOURNALD_PROXY" == "1" ] && [ "$SPLUNK_ENABLE_SYSLOG_SCRUB" == "1" ] && [ "$SPLUNK_ENABLE_JOURNALD_SCRUB" == "0" ]; then
+cat << EOF >> /$SPLUNK_DIR/props.conf
+
+[source::http:system]
+SEDCMD-removeenvvars = $SPLUNK_SYSLOG_REGEX
+EOF
+fi
 
 
 #setup default transforms.conf configuration this will be updated via api from marathon imagedef extraction

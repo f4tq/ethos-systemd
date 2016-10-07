@@ -18,8 +18,8 @@ SPLUNK_CLOUDOPS_CERTPATH_FORMAT=$(etcd-get /splunk/config/cloudops/certpath-form
 SPLUNK_SECOPS_CERTPATH_FORMAT=$(etcd-get /splunk/config/secops/certpath-format)
 SPLUNK_CLOUDOPS_ROOTCA_FORMAT=$(etcd-get /splunk/config/cloudops/rootca-format)
 SPLUNK_SECOPS_ROOTCA_FORMAT=$(etcd-get /splunk/config/secops/rootca-format)
-SPLUNK_UNIVERSALFORWARDER_SECOPS_PORT==$(etcd-get /splunk/config/universalforwarder/secops-port)
-SPLUNK_UNIVERSALFORWARDER_CLOUDOPS_PORT==$(etcd-get /splunk/config/universalforwarder/cloudops-port)
+SPLUNK_UNIVERSALFORWARDER_SECOPS_PORT=$(etcd-get /splunk/config/universalforwarder/secops-port)
+SPLUNK_UNIVERSALFORWARDER_CLOUDOPS_PORT=$(etcd-get /splunk/config/universalforwarder/cloudops-port)
 
 #create splunk configuration directory
 mkdir -p $SPLUNK_DIR

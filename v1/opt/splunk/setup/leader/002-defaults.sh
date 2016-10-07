@@ -45,8 +45,12 @@ etcd-set /splunk/config/heavyforwarder/default-port 9997
 etcd-set /splunk/config/heavyforwarder/proxy-port 9998
 etcd-set /splunk/config/universalforwarder/cloudops-port 1515
 etcd-set /splunk/config/universalforwarder/secops-port 1514
-# make logging elb availible to etcd
+# Log scrubbing variables
+etcd-set /splunk/config/syslog-scrub-regex "s/\(-e\ [^=]*\)=[^\ ]*/\1=****** /g"
+etcd-set /splunk/config/scrub-syslog 1
+etcd-set /splunk/config/heavyforwarder/scrub-syslog 0
 
+# make logging elb availible to etcd
 etcd-set /environment/LOGGING_ELB $FLUENTD_INTERNAL_ELB
 
 

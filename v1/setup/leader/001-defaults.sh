@@ -28,7 +28,7 @@ etcd-set /images/booster-sidekick       "index.docker.io/behance/booster-sidekic
 
 etcd-set /images/capcom                 "index.docker.io/behance/capcom:3ddcfe360a95adcf97d4e9f3a98f9e59057e55c6"
 etcd-set /images/proxy                  "index.docker.io/nginx:1.9.5"
-etcd-set /images/control-proxy          "index.docker.io/behance/apigateway:v0.0.1"
+etcd-set /images/control-proxy          "index.docker.io/behance/apigateway:v0.0.2"
 
 etcd-set /images/mesos-slave            "index.docker.io/mesosphere/mesos-slave:1.0.11.0.1-2.0.93.ubuntu1404"
 
